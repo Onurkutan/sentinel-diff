@@ -9,7 +9,7 @@ import click
 import numpy as np
 
 from sentinel_diff import __version__
-from sentinel_diff.catalog import RESERVOIR_PRESETS, get_preset_bbox, search_sentinel_scenes
+from sentinel_diff.catalog import RESERVOIR_PRESETS, get_preset_bbox, search_sentinel_scenes, select_scene_pair
 from sentinel_diff.indices import compute_mndwi, compute_ndvi
 from sentinel_diff.mask import build_valid_mask
 from sentinel_diff.cva import compute_difference, compute_cva_magnitude, otsu_threshold, filter_noise_morphology
@@ -71,33 +71,40 @@ def search(preset: str, date_range: str, max_cloud: float, limit: int):
 @click.option("--preset", default="alibeykoy", help="Preset area name.")
 @click.option("--before-date", required=True, help="Baseline date range (e.g. 2021-08-01/2021-08-31).")
 @click.option("--after-date", required=True, help="Observation date range (e.g. 2023-08-01/2023-08-31).")
+@click.option("--max-cloud", type=float, default=10.0, help="Max cloud cover %% for STAC query (default: 10.0).")
 @click.option("--out-dir", default="reports", help="Output directory for reports and figures.")
-def analyze(preset: str, before_date: str, after_date: str, out_dir: str):
+def analyze(preset: str, before_date: str, after_date: str, max_cloud: float, out_dir: str):
     """Run full change detection pipeline between two temporal observations."""
     bbox = get_preset_bbox(preset)
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
     click.echo(f"=== sentinel-diff Analysis: {preset.upper()} ===")
-    click.echo(f"1. Searching baseline scene ({before_date}, selecting least cloudy)...")
+    click.echo(f"    max-cloud={max_cloud}%")
+    click.echo(f"1. Searching baseline scenes ({before_date})...")
     before_scenes = search_sentinel_scenes(
-        bbox, before_date, max_cloud_cover=15.0, max_items=20, sort_by_cloud=True
+        bbox, before_date, max_cloud_cover=max_cloud, max_items=20
     )
     if not before_scenes:
         raise click.ClickException(f"No clear baseline scene found in range {before_date}")
-    item_before = before_scenes[0]["item_obj"]
-    cloud_b = f"{before_scenes[0]['cloud_cover']:.2f}%" if before_scenes[0]['cloud_cover'] is not None else "N/A"
-    click.echo(f"   Using: {item_before.id} ({before_scenes[0]['datetime'][:10]}, cloud: {cloud_b})")
+    click.echo(f"   Found {len(before_scenes)} candidate scene(s).")
 
-    click.echo(f"2. Searching observation scene ({after_date}, selecting least cloudy)...")
+    click.echo(f"2. Searching observation scenes ({after_date})...")
     after_scenes = search_sentinel_scenes(
-        bbox, after_date, max_cloud_cover=15.0, max_items=20, sort_by_cloud=True
+        bbox, after_date, max_cloud_cover=max_cloud, max_items=20
     )
     if not after_scenes:
         raise click.ClickException(f"No clear observation scene found in range {after_date}")
-    item_after = after_scenes[0]["item_obj"]
-    cloud_a = f"{after_scenes[0]['cloud_cover']:.2f}%" if after_scenes[0]['cloud_cover'] is not None else "N/A"
-    click.echo(f"   Using: {item_after.id} ({after_scenes[0]['datetime'][:10]}, cloud: {cloud_a})")
+    click.echo(f"   Found {len(after_scenes)} candidate scene(s).")
+
+    click.echo("3. Selecting scene pair (DOY proximity + dedup + cloud tiebreaker)...")
+    before_pick, after_pick = select_scene_pair(before_scenes, after_scenes)
+    item_before = before_pick["item_obj"]
+    item_after = after_pick["item_obj"]
+    cloud_b = f"{before_pick['cloud_cover']:.2f}%" if before_pick['cloud_cover'] is not None else "N/A"
+    cloud_a = f"{after_pick['cloud_cover']:.2f}%" if after_pick['cloud_cover'] is not None else "N/A"
+    click.echo(f"   Before: {item_before.id} ({before_pick['datetime'][:10]}, cloud: {cloud_b})")
+    click.echo(f"   After:  {item_after.id} ({after_pick['datetime'][:10]}, cloud: {cloud_a})")
 
     click.echo("3. Streaming windowed multispectral bands (B03, B08, B11, SCL)...")
     cube_before = load_multispectral_cube(item_before, bbox)
@@ -141,11 +148,11 @@ def analyze(preset: str, before_date: str, after_date: str, out_dir: str):
         "preset": preset,
         "bbox": bbox,
         "baseline_scene_id": item_before.id,
-        "baseline_datetime": before_scenes[0]["datetime"],
-        "baseline_cloud_cover_pct": before_scenes[0]["cloud_cover"],
+        "baseline_datetime": before_pick["datetime"],
+        "baseline_cloud_cover_pct": before_pick["cloud_cover"],
         "observation_scene_id": item_after.id,
-        "observation_datetime": after_scenes[0]["datetime"],
-        "observation_cloud_cover_pct": after_scenes[0]["cloud_cover"],
+        "observation_datetime": after_pick["datetime"],
+        "observation_cloud_cover_pct": after_pick["cloud_cover"],
         "stac_collection": "sentinel-2-l2a",
     }
 
@@ -153,9 +160,9 @@ def analyze(preset: str, before_date: str, after_date: str, out_dir: str):
     click.echo(f"  SURFACE WATER CHANGE SUMMARY: {preset.upper()}")
     click.echo("=" * 45)
     click.echo(f"Baseline Scene       : {item_before.id}")
-    click.echo(f"Baseline Date        : {before_scenes[0]['datetime'][:10]} (cloud: {cloud_b})")
+    click.echo(f"Baseline Date        : {before_pick['datetime'][:10]} (cloud: {cloud_b})")
     click.echo(f"Observation Scene    : {item_after.id}")
-    click.echo(f"Observation Date     : {after_scenes[0]['datetime'][:10]} (cloud: {cloud_a})")
+    click.echo(f"Observation Date     : {after_pick['datetime'][:10]} (cloud: {cloud_a})")
     click.echo(f"Baseline Water Area  : {metrics['baseline_water_hectares']} ha")
     click.echo(f"Subsequent Water Area: {metrics['subsequent_water_hectares']} ha")
     click.echo(f"Persistent Water     : {metrics['persistent_water_hectares']} ha")
@@ -173,7 +180,7 @@ def analyze(preset: str, before_date: str, after_date: str, out_dir: str):
     # Build and save figure
     fig_file = out_path / "figures" / f"{preset}_change_analysis.png"
     subtitle = (
-        f"{before_scenes[0]['datetime'][:10]} vs {after_scenes[0]['datetime'][:10]} | "
+        f"{before_pick['datetime'][:10]} vs {after_pick['datetime'][:10]} | "
         f"Net Change: {metrics['net_change_hectares']} ha ({metrics['percentage_change']}%)"
     )
     plot_change_summary(
