@@ -75,3 +75,28 @@ Surface area in hectares is computed directly from pixel counts:
 $$\text{Area (ha)} = \frac{N_{\text{pixels}} \times \Delta x \times \Delta y}{10{,}000}$$
 
 where $\Delta x = \Delta y = 10\text{ m}$ for Sentinel-2 high-resolution bands.
+
+---
+
+## 5. Scene Pair Selection
+
+Bi-temporal change detection requires two scenes acquired at comparable phenological states. To minimise seasonal bias while maximising image quality, the pipeline applies a three-step selection protocol:
+
+### 5.1 Reprocessing Deduplication
+
+ESA periodically reprocesses Sentinel-2 products (e.g. Collection-1 reprocessing in 2024). This produces multiple STAC items sharing the same acquisition but with different processing timestamps. The item ID encodes this structure:
+
+```
+S2B_MSIL2A_20230802T084609_R107_T35TPF_20241025T040038
+└───────── product key (segments 1–5) ─────────┘ └── processing timestamp ──┘
+```
+
+`dedup_scenes()` groups items by their product key (first five underscore-separated segments) and retains only the item with the latest processing timestamp, ensuring the most up-to-date radiometric calibration is used.
+
+### 5.2 Day-of-Year Proximity Scoring
+
+All candidate `(before, after)` pairs are scored by `(|DOY_before − DOY_after|, cloud_before + cloud_after)`. The pair with the smallest DOY difference is selected; among ties, the pair with the lowest combined cloud cover wins. This ensures the two scenes are acquired at the closest possible point in the annual vegetation cycle, minimising phenological artefacts in the change signal.
+
+### 5.3 Cloud Cover Handling
+
+Cloud cover values are extracted with explicit `None`-checking: a cloud cover of `0.0` (perfectly clear sky) is preserved as `0.0`, while missing values default to `100.0`. The maximum cloud cover threshold is configurable via `--max-cloud` (default: `10.0%`).

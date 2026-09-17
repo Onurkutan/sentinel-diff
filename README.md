@@ -23,7 +23,7 @@ Implementation progress is tracked against the codebase in [`PLAN.md`](PLAN.md).
 
 ## Results: Istanbul Alibeyköy Reservoir (2021 vs 2023)
 
-The pipeline was executed to evaluate the severe late-summer drought across Istanbul's **Alibeyköy Reservoir**, comparing cloudless acquisitions from **2021-08-02** against **2023-08-02**:
+The pipeline was executed to evaluate the severe late-summer drought across Istanbul's **Alibeyköy Reservoir**, comparing DOY-matched cloudless acquisitions from **2021-08-02** against **2023-08-02**:
 
 ```bash
 sentinel-diff analyze --preset alibeykoy --before-date "2021-08-01/2021-08-31" --after-date "2023-08-01/2023-08-31"
@@ -34,14 +34,14 @@ sentinel-diff analyze --preset alibeykoy --before-date "2021-08-01/2021-08-31" -
 | Metric | Value |
 |---|---|
 | **Preset Area** | `alibeykoy` (BBox: `[28.87, 41.10, 28.96, 41.17]`) |
-| **Baseline Date** | 2021-08-05 (`S2B_MSIL2A_20210805T085559_R007_T35TPF_20210805T172629`, cloud: 0.37%) |
-| **Observation Date** | 2023-08-30 (`S2A_MSIL2A_20230830T085601_R007_T35TPF_20240822T073435`, cloud: 0.07%) |
-| **Baseline Water Area** | **266.04 ha** |
-| **Observation Water Area** | **202.06 ha** |
-| **Persistent Water Area** | **159.32 ha** |
-| **Water Loss (Drought / Shrinkage)** | **106.72 ha** |
-| **Water Gain (Inflow / Expansion)** | **42.74 ha** |
-| **Net Surface Water Change** | **−63.98 ha (−24.05 %)** |
+| **Baseline Date** | 2021-08-02 (`S2B_MSIL2A_20210802T084559_R107_T35TPF_20210802T203106`, cloud: 0.72%) |
+| **Observation Date** | 2023-08-02 (`S2B_MSIL2A_20230802T084609_R107_T35TPF_20241025T040038`, cloud: 0.35%) |
+| **Baseline Water Area** | **284.73 ha** |
+| **Observation Water Area** | **228.95 ha** |
+| **Persistent Water Area** | **186.54 ha** |
+| **Water Loss (Drought / Shrinkage)** | **98.19 ha** |
+| **Water Gain (Inflow / Expansion)** | **42.41 ha** |
+| **Net Surface Water Change** | **−55.78 ha (−19.59 %)** |
 
 ### Diagnostic Figure
 
@@ -73,7 +73,7 @@ sentinel-diff/
 │   ├── alibeykoy_metrics.json
 │   ├── figures/alibeykoy_change_analysis.png
 │   └── interactive/alibeykoy_report.html
-├── tests/               # Unit tests running against in-memory NumPy arrays
+├── tests/               # Unit tests (real GeoTIFF rasters, synthetic STAC stubs)
 ├── scripts/             # check_repo_hygiene.py (zero-leak publish safety scanner)
 ├── docs/                # METHODOLOGY.md and DATA.md
 ├── pyproject.toml

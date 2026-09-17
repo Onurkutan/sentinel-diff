@@ -33,17 +33,21 @@ This document tracks the verified implementation status of `sentinel-diff`. All 
 - [ ] Single-file HTML slider map (current HTML is a static dashboard: no slider, links to PNG via relative path)
 
 ### Phase 6 – Docs, tests, release
-- [x] Offline unit tests (small in-memory NumPy arrays; not synthetic raster fixtures), `METHODOLOGY.md`, `DATA.md`
+- [x] Real offline unit tests: `test_ingest.py` (GeoTIFF rasters via `tmp_path`), `test_catalog.py` (synthetic scene dicts), `test_cva.py`, `test_indices.py`, `test_mask.py`, `test_metrics.py`
+- [x] `METHODOLOGY.md`, `DATA.md`
 - [ ] v0.1.0 git tag
+- [ ] CI (`.github/workflows` missing)
 
 ---
 
 ## Known Issues & Recent Fixes
 
-### Resolved in Recent Commits
-1. **[RESOLVED] Categorical resampling in `ingest.py`**: SCL categorical layer now strictly uses `Resampling.nearest` rather than bilinear, preventing synthetic intermediate classes along classification boundaries. Verified via `tests/test_ingest.py`.
-2. **[RESOLVED] STAC query semantics in `catalog.py`**: `pystac-client` query now uses `max_items` instead of page `limit`, and `analyze` sorts by cloud cover (`sort_by_cloud=True`) to automatically pick the cleanest observation in the requested window.
-3. **[RESOLVED] Reproducibility metadata in metrics**: `reports/*_metrics.json` now records complete provenance metadata (preset, bbox, scene IDs, acquisition datetimes, and cloud percentages) for standalone reproducibility.
+### Resolved
+1. **[RESOLVED] Categorical resampling in `ingest.py`**: SCL categorical layer uses `Resampling.nearest`, preventing synthetic intermediate classes. Verified: `TestLoadMultispectralCube::test_scl_preserves_classes` fails with bilinear (classes `{4,5,7,8,9}`), passes with nearest.
+2. **[RESOLVED] Cloud cover 0.0 treated as 100.0**: `catalog.py` used `properties.get("eo:cloud_cover", 100.0) or 100.0` — `0.0` is falsy and was replaced by `100.0`. Fixed with `_extract_cloud_cover()` using explicit `None` check. Verified: `TestCloudCoverExtraction::test_zero_cloud_is_zero`.
+3. **[RESOLVED] Scene pair selection and reprocessing duplicates**: STAC returns both original and Collection-1 reprocessed items for the same acquisition. `dedup_scenes()` keeps only the latest processing timestamp per product key; `select_scene_pair()` picks the DOY-closest pair with cloud tiebreaker. Verified: `TestDedup::test_keeps_latest_processing`, `TestSelectScenePair::test_prefers_doy_proximity_over_lower_cloud`.
+4. **[RESOLVED] Hardcoded max-cloud in analyze**: Was `15.0`; now configurable via `--max-cloud` (default `10.0`).
+5. **[RESOLVED] Reproducibility metadata in metrics**: `reports/*_metrics.json` records complete provenance (preset, bbox, scene IDs, datetimes, cloud %).
 
 ### Open Known Issues
 1. **Sentinel-2 BOA processing baseline offset**: Sentinel-2 Level-2A products under processing baseline $\ge 04.00$ introduce a $+1000$ digital number offset that is not yet corrected. In multi-year comparisons (e.g. 2021 vs 2023), the $|\Delta\text{MNDWI}|$ panel and Otsu threshold are affected by this artifact. Because water classification relies on the sign ($\text{MNDWI} > 0$), hectare metrics are unaffected.
