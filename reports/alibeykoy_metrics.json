@@ -1,11 +1,27 @@
 {
   "pixel_resolution_m": 10.0,
-  "total_analyzed_hectares": 6034.58,
-  "baseline_water_hectares": 271.7,
-  "subsequent_water_hectares": 222.89,
-  "persistent_water_hectares": 180.57,
-  "water_loss_hectares": 91.13,
-  "water_gain_hectares": 42.32,
-  "net_change_hectares": -48.81,
-  "percentage_change": -17.96
+  "total_analyzed_hectares": 6090.7,
+  "baseline_water_hectares": 266.04,
+  "subsequent_water_hectares": 202.06,
+  "persistent_water_hectares": 159.32,
+  "water_loss_hectares": 106.72,
+  "water_gain_hectares": 42.74,
+  "net_change_hectares": -63.98,
+  "percentage_change": -24.05,
+  "metadata": {
+    "preset": "alibeykoy",
+    "bbox": [
+      28.87,
+      41.1,
+      28.96,
+      41.17
+    ],
+    "baseline_scene_id": "S2B_MSIL2A_20210805T085559_R007_T35TPF_20210805T172629",
+    "baseline_datetime": "2021-08-05T08:55:59.024000+00:00",
+    "baseline_cloud_cover_pct": 0.372048,
+    "observation_scene_id": "S2A_MSIL2A_20230830T085601_R007_T35TPF_20240822T073435",
+    "observation_datetime": "2023-08-30T08:56:01.024000+00:00",
+    "observation_cloud_cover_pct": 0.065302,
+    "stac_collection": "sentinel-2-l2a"
+  }
 }

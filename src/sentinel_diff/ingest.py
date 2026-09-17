@@ -14,6 +14,7 @@ def read_windowed_band(
     asset_href: str,
     bbox_wgs84: List[float],
     target_shape: Optional[Tuple[int, int]] = None,
+    resampling: rasterio.enums.Resampling = rasterio.enums.Resampling.bilinear,
 ) -> Tuple[np.ndarray, rasterio.Affine, rasterio.crs.CRS]:
     """
     Reads only the bounding box region from a remote Cloud-Optimized GeoTIFF.
@@ -22,6 +23,7 @@ def read_windowed_band(
         asset_href: Direct or signed URL to the GeoTIFF asset
         bbox_wgs84: [min_lon, min_lat, max_lon, max_lat] in EPSG:4326
         target_shape: Optional (height, width) to resample to (useful for aligning 20m SWIR to 10m Green/NIR)
+        resampling: Resampling algorithm (use nearest for categorical bands like SCL)
         
     Returns:
         (band_array, transform, crs)
@@ -42,7 +44,7 @@ def read_windowed_band(
                 1,
                 window=window,
                 out_shape=target_shape,
-                resampling=rasterio.enums.Resampling.bilinear,
+                resampling=resampling,
             )
         else:
             data = src.read(1, window=window)
@@ -59,6 +61,7 @@ def load_multispectral_cube(
     """
     Loads required Sentinel-2 bands for a given STAC item within a bounding box.
     Automatically aligns 20m bands (like B11 SWIR and SCL) to the 10m grid (B03 Green, B08 NIR).
+    Uses nearest-neighbor resampling for categorical layers (SCL) to avoid spurious intermediate classes.
     """
     # First read B03 (10m) as reference geometry
     green_href = item.assets["B03"].href
@@ -74,7 +77,14 @@ def load_multispectral_cube(
         if band not in item.assets:
             continue
         band_href = item.assets[band].href
-        band_data, _, _ = read_windowed_band(band_href, bbox_wgs84, target_shape=ref_shape)
+        resampling_mode = (
+            rasterio.enums.Resampling.nearest
+            if band == "SCL"
+            else rasterio.enums.Resampling.bilinear
+        )
+        band_data, _, _ = read_windowed_band(
+            band_href, bbox_wgs84, target_shape=ref_shape, resampling=resampling_mode
+        )
         cube[band] = band_data
         
     return cube

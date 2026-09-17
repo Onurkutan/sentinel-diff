@@ -34,12 +34,13 @@ def search_sentinel_scenes(
     bbox: List[float],
     datetime_range: str,
     max_cloud_cover: float = 15.0,
-    limit: int = 10,
+    max_items: int = 10,
+    sort_by_cloud: bool = False,
     stac_url: str = DEFAULT_STAC_URL,
 ) -> List[Dict[str, Any]]:
     """
     Discovers available Sentinel-2 scenes matching bounding box and date criteria.
-    Returns a sorted list of scene metadata dictionaries.
+    Uses max_items to bound total returned items across pages.
     """
     client = Client.open(stac_url, modifier=pc.sign_inplace)
     
@@ -48,12 +49,17 @@ def search_sentinel_scenes(
         bbox=bbox,
         datetime=datetime_range,
         query={"eo:cloud_cover": {"lt": max_cloud_cover}},
-        limit=limit,
+        max_items=max_items,
     )
     
     items = list(search.items())
-    # Sort chronologically
-    items.sort(key=lambda x: x.datetime)
+    
+    if sort_by_cloud:
+        # Sort by cloud cover ascending, then by date
+        items.sort(key=lambda x: (x.properties.get("eo:cloud_cover", 100.0) or 100.0, x.datetime))
+    else:
+        # Sort chronologically
+        items.sort(key=lambda x: x.datetime)
     
     results = []
     for item in items:

@@ -52,7 +52,7 @@ def search(preset: str, date_range: str, max_cloud: float, limit: int):
         raise click.ClickException(str(e))
 
     click.echo(f"Searching STAC for preset '{preset}' (BBox: {bbox}) between {date_range}...")
-    scenes = search_sentinel_scenes(bbox, date_range, max_cloud_cover=max_cloud, limit=limit)
+    scenes = search_sentinel_scenes(bbox, date_range, max_cloud_cover=max_cloud, max_items=limit)
     
     if not scenes:
         click.echo("No scenes found matching criteria.")
@@ -79,19 +79,25 @@ def analyze(preset: str, before_date: str, after_date: str, out_dir: str):
     out_path.mkdir(parents=True, exist_ok=True)
 
     click.echo(f"=== sentinel-diff Analysis: {preset.upper()} ===")
-    click.echo(f"1. Searching baseline scene ({before_date})...")
-    before_scenes = search_sentinel_scenes(bbox, before_date, max_cloud_cover=10.0, limit=1)
+    click.echo(f"1. Searching baseline scene ({before_date}, selecting least cloudy)...")
+    before_scenes = search_sentinel_scenes(
+        bbox, before_date, max_cloud_cover=15.0, max_items=20, sort_by_cloud=True
+    )
     if not before_scenes:
         raise click.ClickException(f"No clear baseline scene found in range {before_date}")
     item_before = before_scenes[0]["item_obj"]
-    click.echo(f"   Using: {item_before.id} ({before_scenes[0]['datetime'][:10]})")
+    cloud_b = f"{before_scenes[0]['cloud_cover']:.2f}%" if before_scenes[0]['cloud_cover'] is not None else "N/A"
+    click.echo(f"   Using: {item_before.id} ({before_scenes[0]['datetime'][:10]}, cloud: {cloud_b})")
 
-    click.echo(f"2. Searching observation scene ({after_date})...")
-    after_scenes = search_sentinel_scenes(bbox, after_date, max_cloud_cover=10.0, limit=1)
+    click.echo(f"2. Searching observation scene ({after_date}, selecting least cloudy)...")
+    after_scenes = search_sentinel_scenes(
+        bbox, after_date, max_cloud_cover=15.0, max_items=20, sort_by_cloud=True
+    )
     if not after_scenes:
         raise click.ClickException(f"No clear observation scene found in range {after_date}")
     item_after = after_scenes[0]["item_obj"]
-    click.echo(f"   Using: {item_after.id} ({after_scenes[0]['datetime'][:10]})")
+    cloud_a = f"{after_scenes[0]['cloud_cover']:.2f}%" if after_scenes[0]['cloud_cover'] is not None else "N/A"
+    click.echo(f"   Using: {item_after.id} ({after_scenes[0]['datetime'][:10]}, cloud: {cloud_a})")
 
     click.echo("3. Streaming windowed multispectral bands (B03, B08, B11, SCL)...")
     cube_before = load_multispectral_cube(item_before, bbox)
@@ -130,11 +136,26 @@ def analyze(preset: str, before_date: str, after_date: str, out_dir: str):
         water_before, water_after, valid_mask=valid_joint, pixel_res_m=10.0
     )
 
+    # Attach complete provenance metadata for standalone reproducibility
+    metrics["metadata"] = {
+        "preset": preset,
+        "bbox": bbox,
+        "baseline_scene_id": item_before.id,
+        "baseline_datetime": before_scenes[0]["datetime"],
+        "baseline_cloud_cover_pct": before_scenes[0]["cloud_cover"],
+        "observation_scene_id": item_after.id,
+        "observation_datetime": after_scenes[0]["datetime"],
+        "observation_cloud_cover_pct": after_scenes[0]["cloud_cover"],
+        "stac_collection": "sentinel-2-l2a",
+    }
+
     click.echo("\n" + "=" * 45)
     click.echo(f"  SURFACE WATER CHANGE SUMMARY: {preset.upper()}")
     click.echo("=" * 45)
-    click.echo(f"Baseline Date        : {before_scenes[0]['datetime'][:10]}")
-    click.echo(f"Observation Date     : {after_scenes[0]['datetime'][:10]}")
+    click.echo(f"Baseline Scene       : {item_before.id}")
+    click.echo(f"Baseline Date        : {before_scenes[0]['datetime'][:10]} (cloud: {cloud_b})")
+    click.echo(f"Observation Scene    : {item_after.id}")
+    click.echo(f"Observation Date     : {after_scenes[0]['datetime'][:10]} (cloud: {cloud_a})")
     click.echo(f"Baseline Water Area  : {metrics['baseline_water_hectares']} ha")
     click.echo(f"Subsequent Water Area: {metrics['subsequent_water_hectares']} ha")
     click.echo(f"Persistent Water     : {metrics['persistent_water_hectares']} ha")

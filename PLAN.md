@@ -38,12 +38,13 @@ This document tracks the verified implementation status of `sentinel-diff`. All 
 
 ---
 
-## Known Issues
+## Known Issues & Recent Fixes
 
-The following known issues are catalogued and verified against the codebase:
+### Resolved in Recent Commits
+1. **[RESOLVED] Categorical resampling in `ingest.py`**: SCL categorical layer now strictly uses `Resampling.nearest` rather than bilinear, preventing synthetic intermediate classes along classification boundaries. Verified via `tests/test_ingest.py`.
+2. **[RESOLVED] STAC query semantics in `catalog.py`**: `pystac-client` query now uses `max_items` instead of page `limit`, and `analyze` sorts by cloud cover (`sort_by_cloud=True`) to automatically pick the cleanest observation in the requested window.
+3. **[RESOLVED] Reproducibility metadata in metrics**: `reports/*_metrics.json` now records complete provenance metadata (preset, bbox, scene IDs, acquisition datetimes, and cloud percentages) for standalone reproducibility.
 
-1. **Categorical resampling in `ingest.py`**: The SCL (Scene Classification Layer) categorical layer is resampled using bilinear interpolation, producing spurious intermediate classes (e.g. classes 5, 7, 8) along class boundaries; should be nearest-neighbor.
-2. **STAC query semantics in `catalog.py`**: In `pystac-client`, `limit` is page size rather than the total item upper bound; `max_items` should be used instead. Furthermore, `analyze` selects the earliest chronological scene in the date range rather than the least cloudy scene.
-3. **Sentinel-2 BOA processing baseline offset**: Sentinel-2 Level-2A products under processing baseline $\ge 04.00$ introduce a $+1000$ digital number offset that is not yet corrected. In multi-year comparisons (e.g. 2021 vs 2023), the $|\Delta\text{MNDWI}|$ panel and Otsu threshold are affected by this artifact. Because water classification relies on the sign ($\text{MNDWI} > 0$), hectare metrics are unaffected.
-4. **Reproducibility metadata in metrics**: `reports/*_metrics.json` outputs lack scene IDs, acquisition dates, and bounding box coordinates, so results cannot be reproduced standalone from the JSON file alone.
-5. **Linter findings**: `ruff check .` returns 61 findings across the codebase (including unused imports).
+### Open Known Issues
+1. **Sentinel-2 BOA processing baseline offset**: Sentinel-2 Level-2A products under processing baseline $\ge 04.00$ introduce a $+1000$ digital number offset that is not yet corrected. In multi-year comparisons (e.g. 2021 vs 2023), the $|\Delta\text{MNDWI}|$ panel and Otsu threshold are affected by this artifact. Because water classification relies on the sign ($\text{MNDWI} > 0$), hectare metrics are unaffected.
+2. **Linter findings**: `ruff check .` returns lint findings across the codebase (including unused imports).

@@ -34,14 +34,14 @@ sentinel-diff analyze --preset alibeykoy --before-date "2021-08-01/2021-08-31" -
 | Metric | Value |
 |---|---|
 | **Preset Area** | `alibeykoy` (BBox: `[28.87, 41.10, 28.96, 41.17]`) |
-| **Baseline Date** | 2021-08-02 (`S2B_MSIL2A_20210802T084559_R107_T35TPF`) |
-| **Observation Date** | 2023-08-02 (`S2B_MSIL2A_20230802T084609_R107_T35TPF`) |
-| **Baseline Water Area** | **271.70 ha** |
-| **Observation Water Area** | **222.89 ha** |
-| **Persistent Water Area** | **180.57 ha** |
-| **Water Loss (Drought / Shrinkage)** | **91.13 ha** |
-| **Water Gain (Inflow / Expansion)** | **42.32 ha** |
-| **Net Surface Water Change** | **−48.81 ha (−17.96 %)** |
+| **Baseline Date** | 2021-08-05 (`S2B_MSIL2A_20210805T085559_R007_T35TPF_20210805T172629`, cloud: 0.37%) |
+| **Observation Date** | 2023-08-30 (`S2A_MSIL2A_20230830T085601_R007_T35TPF_20240822T073435`, cloud: 0.07%) |
+| **Baseline Water Area** | **266.04 ha** |
+| **Observation Water Area** | **202.06 ha** |
+| **Persistent Water Area** | **159.32 ha** |
+| **Water Loss (Drought / Shrinkage)** | **106.72 ha** |
+| **Water Gain (Inflow / Expansion)** | **42.74 ha** |
+| **Net Surface Water Change** | **−63.98 ha (−24.05 %)** |
 
 ### Diagnostic Figure
 
