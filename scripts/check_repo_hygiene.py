@@ -57,6 +57,53 @@ def get_tracked_files():
         return files
 
 
+def check_test_imports(repo_root):
+    """Verify that test files import from the package under test.
+
+    Returns (errors, warnings) lists.
+    - ERROR: tests/test_<name>.py does not import sentinel_diff at all.
+    - WARN:  src/sentinel_diff/<name>.py exists but tests/test_<name>.py
+             does not import sentinel_diff.<name>.
+    """
+    errors = []
+    warnings = []
+
+    tests_dir = repo_root / "tests"
+    src_dir = repo_root / "src" / "sentinel_diff"
+
+    if not tests_dir.is_dir():
+        return errors, warnings
+
+    for test_file in sorted(tests_dir.glob("test_*.py")):
+        name = test_file.stem  # e.g. "test_ingest"
+        module_name = name[len("test_"):]  # e.g. "ingest"
+
+        try:
+            content = test_file.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+
+        # ERROR: test file must import sentinel_diff
+        if "sentinel_diff" not in content:
+            errors.append(
+                f"Test file {test_file.name} does not import sentinel_diff "
+                f"(test reimplements behaviour instead of calling the module)"
+            )
+            continue
+
+        # WARN: if a matching source module exists, the test should import it
+        src_module = src_dir / f"{module_name}.py"
+        if src_module.is_file():
+            expected_import = f"sentinel_diff.{module_name}"
+            if expected_import not in content:
+                warnings.append(
+                    f"Test file {test_file.name} imports sentinel_diff but not "
+                    f"sentinel_diff.{module_name} (matching source module exists)"
+                )
+
+    return errors, warnings
+
+
 def check_hygiene():
     repo_root = Path(__file__).resolve().parent.parent
     os.chdir(repo_root)
@@ -95,6 +142,11 @@ def check_hygiene():
             for pat in LOCAL_PATH_PATTERNS:
                 if pat.search(content):
                     warnings.append(f"Local environment path detected in: {rel_path}")
+
+    # 4. Test-import relevance checks
+    test_errors, test_warnings = check_test_imports(repo_root)
+    errors.extend(test_errors)
+    warnings.extend(test_warnings)
 
     print("========================================")
     print("      Sentinel-Diff Hygiene Report      ")
