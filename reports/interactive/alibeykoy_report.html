@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Istanbul ALIBEYKOY Reservoir Water Change Analysis - sentinel-diff</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: #f8fafc;
+      color: #1e293b;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+      padding: 32px;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 26px;
+      color: #0f172a;
+    }
+    .subtitle {
+      color: #64748b;
+      margin-top: -8px;
+      margin-bottom: 24px;
+      font-size: 15px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .card {
+      background: #f1f5f9;
+      border-radius: 8px;
+      padding: 16px;
+      border-left: 4px solid #0284c7;
+    }
+    .card.danger {
+      border-left-color: #ef4444;
+    }
+    .card.success {
+      border-left-color: #10b981;
+    }
+    .card-label {
+      font-size: 13px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .card-value {
+      font-size: 22px;
+      font-weight: 700;
+      margin-top: 6px;
+      color: #0f172a;
+    }
+    .figure-container {
+      text-align: center;
+      margin-top: 24px;
+    }
+    .figure-container img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    footer {
+      margin-top: 32px;
+      text-align: center;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Istanbul ALIBEYKOY Reservoir Water Change Analysis</h1>
+    <div class="subtitle">Reproducible Multi-Temporal Satellite Change Detection & Environmental Monitoring</div>
+    
+    <div class="grid">
+      <div class="card">
+        <div class="card-label">Baseline Water Area</div>
+        <div class="card-value">271.7 ha</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Observation Water Area</div>
+        <div class="card-value">222.89 ha</div>
+      </div>
+      <div class="card danger">
+        <div class="card-label">Water Loss (Shrinkage)</div>
+        <div class="card-value">91.13 ha</div>
+      </div>
+      <div class="card danger">
+        <div class="card-label">Net Surface Change</div>
+        <div class="card-value">-48.81 ha (-17.96%)</div>
+      </div>
+    </div>
+
+    <div class="figure-container">
+      <img src="../figures/alibeykoy_change_analysis.png" alt="Istanbul ALIBEYKOY Reservoir Water Change Analysis Change Analysis Figure">
+    </div>
+
+    <footer>
+      Generated with <strong>sentinel-diff</strong> · Powered by European Space Agency Sentinel-2 L2A open data.
+    </footer>
+  </div>
+</body>
+</html>

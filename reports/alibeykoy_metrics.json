@@ -1,0 +1,11 @@
+{
+  "pixel_resolution_m": 10.0,
+  "total_analyzed_hectares": 6034.58,
+  "baseline_water_hectares": 271.7,
+  "subsequent_water_hectares": 222.89,
+  "persistent_water_hectares": 180.57,
+  "water_loss_hectares": 91.13,
+  "water_gain_hectares": 42.32,
+  "net_change_hectares": -48.81,
+  "percentage_change": -17.96
+}
