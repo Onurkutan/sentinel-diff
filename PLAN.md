@@ -12,8 +12,8 @@ This document tracks the verified implementation status of `sentinel-diff`. All 
 
 ### Phase 1 – Scaffold & safety
 - [x] `pyproject.toml`, `.gitignore`, `scripts/check_repo_hygiene.py`
-- [ ] Test fixtures (`tests/fixtures` and `conftest.py` missing)
-- [ ] CI (`.github/workflows` missing)
+- [x] Test fixtures (`tests/conftest.py` with shared GeoTIFF helpers and pytest fixtures)
+- [x] CI (`.github/workflows/ci.yml`: lint + test + hygiene on Python 3.10–3.12)
 
 ### Phase 2 – Data ingestion
 - [x] Microsoft Planetary Computer STAC + windowed COG reading
@@ -36,7 +36,6 @@ This document tracks the verified implementation status of `sentinel-diff`. All 
 - [x] Real offline unit tests: `test_ingest.py` (GeoTIFF rasters via `tmp_path`), `test_catalog.py` (synthetic scene dicts), `test_cva.py`, `test_indices.py`, `test_mask.py`, `test_metrics.py`
 - [x] `METHODOLOGY.md`, `DATA.md`
 - [ ] v0.1.0 git tag
-- [ ] CI (`.github/workflows` missing)
 
 ---
 
@@ -48,7 +47,7 @@ This document tracks the verified implementation status of `sentinel-diff`. All 
 3. **[RESOLVED] Scene pair selection and reprocessing duplicates**: STAC returns both original and Collection-1 reprocessed items for the same acquisition. `dedup_scenes()` keeps only the latest processing timestamp per product key; `select_scene_pair()` picks the DOY-closest pair with cloud tiebreaker. Verified: `TestDedup::test_keeps_latest_processing`, `TestSelectScenePair::test_prefers_doy_proximity_over_lower_cloud`.
 4. **[RESOLVED] Hardcoded max-cloud in analyze**: Was `15.0`; now configurable via `--max-cloud` (default `10.0`).
 5. **[RESOLVED] Reproducibility metadata in metrics**: `reports/*_metrics.json` records complete provenance (preset, bbox, scene IDs, datetimes, cloud %).
+6. **[RESOLVED] Linter findings**: `ruff check src/ tests/` returns 0 errors. Fixed import sorting (I001), unused imports (F401), deprecated type annotations (UP006/UP035), unused variables (F841, RUF059).
 
 ### Open Known Issues
 1. **Sentinel-2 BOA processing baseline offset**: Sentinel-2 Level-2A products under processing baseline $\ge 04.00$ introduce a $+1000$ digital number offset that is not yet corrected. In multi-year comparisons (e.g. 2021 vs 2023), the $|\Delta\text{MNDWI}|$ panel and Otsu threshold are affected by this artifact. Because water classification relies on the sign ($\text{MNDWI} > 0$), hectare metrics are unaffected.
-2. **Linter findings**: `ruff check .` returns lint findings across the codebase (including unused imports).
