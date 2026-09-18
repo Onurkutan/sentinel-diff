@@ -2,7 +2,8 @@
 Spatial metrics and surface area calculations for environmental monitoring.
 """
 
-from typing import Dict, Any
+from typing import Any
+
 import numpy as np
 
 
@@ -23,7 +24,7 @@ def summarize_water_change(
     water_after: np.ndarray,
     valid_mask: np.ndarray = None,
     pixel_res_m: float = 10.0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Computes rigorous surface area transition metrics between two observations.
     

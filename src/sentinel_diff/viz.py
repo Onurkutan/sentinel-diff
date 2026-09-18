@@ -3,12 +3,12 @@ Visualization module for sentinel-diff.
 Generates publication-quality matplotlib figures and standalone HTML slider maps.
 """
 
-from typing import Dict, Any, Optional
 from pathlib import Path
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
+from typing import Any
 
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import ListedColormap
 
 # Standard publication palette
 PALETTE = {
@@ -74,7 +74,7 @@ def plot_change_summary(
         PALETTE["water_gain"]
     ])
     
-    im3 = axes[1, 1].imshow(transition, cmap=cmap_trans, vmin=0, vmax=3)
+    axes[1, 1].imshow(transition, cmap=cmap_trans, vmin=0, vmax=3)
     axes[1, 1].set_title("Classified Water Transition", fontsize=12, fontweight="bold", pad=8)
     axes[1, 1].axis("off")
 
@@ -99,7 +99,7 @@ def generate_interactive_slider_html(
     figure_rel_path: str,
     output_html_path: Path,
     title: str,
-    metrics: Dict[str, Any],
+    metrics: dict[str, Any],
 ) -> None:
     """
     Generates a lightweight, zero-dependency standalone HTML dashboard with metrics

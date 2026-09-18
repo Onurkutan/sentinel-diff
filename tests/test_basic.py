@@ -1,6 +1,7 @@
+from click.testing import CliRunner
+
 from sentinel_diff import __version__
 from sentinel_diff.cli import main
-from click.testing import CliRunner
 
 
 def test_version():

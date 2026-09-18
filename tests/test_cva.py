@@ -1,10 +1,10 @@
 import numpy as np
+
 from sentinel_diff.cva import (
-    compute_difference,
     compute_cva_magnitude,
-    otsu_threshold,
-    mad_threshold,
+    compute_difference,
     filter_noise_morphology,
+    otsu_threshold,
 )
 
 

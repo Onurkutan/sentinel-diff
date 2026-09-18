@@ -3,7 +3,6 @@ Change Vector Analysis (CVA) and statistical thresholding algorithms.
 Provides automated Otsu and Median Absolute Deviation (MAD) thresholding without OpenCV.
 """
 
-from typing import Optional, Tuple
 import numpy as np
 from scipy import ndimage
 
@@ -11,7 +10,7 @@ from scipy import ndimage
 def compute_difference(
     before: np.ndarray,
     after: np.ndarray,
-    valid_mask: Optional[np.ndarray] = None,
+    valid_mask: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Computes simple temporal difference: after - before.
@@ -25,8 +24,8 @@ def compute_difference(
 
 def compute_cva_magnitude(
     diff_dim1: np.ndarray,
-    diff_dim2: Optional[np.ndarray] = None,
-    valid_mask: Optional[np.ndarray] = None,
+    diff_dim2: np.ndarray | None = None,
+    valid_mask: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Computes Change Vector magnitude.

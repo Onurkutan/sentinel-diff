@@ -1,11 +1,12 @@
 import numpy as np
+
 from sentinel_diff.mask import (
-    build_valid_mask,
-    isolate_water_scl,
-    SCL_WATER,
-    SCL_VEGETATION,
     SCL_CLOUD_HIGH_PROBABILITY,
     SCL_CLOUD_SHADOWS,
+    SCL_VEGETATION,
+    SCL_WATER,
+    build_valid_mask,
+    isolate_water_scl,
 )
 
 

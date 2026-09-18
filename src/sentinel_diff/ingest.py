@@ -3,19 +3,19 @@ Cloud-Optimized GeoTIFF (COG) windowed streaming reader.
 Fetches only the requested bounding box coordinates using HTTP range requests.
 """
 
-from typing import List, Dict, Optional, Tuple
-import rasterio
-from rasterio.windows import from_bounds
-from rasterio.warp import transform_bounds
+
 import numpy as np
+import rasterio
+from rasterio.warp import transform_bounds
+from rasterio.windows import from_bounds
 
 
 def read_windowed_band(
     asset_href: str,
-    bbox_wgs84: List[float],
-    target_shape: Optional[Tuple[int, int]] = None,
+    bbox_wgs84: list[float],
+    target_shape: tuple[int, int] | None = None,
     resampling: rasterio.enums.Resampling = rasterio.enums.Resampling.bilinear,
-) -> Tuple[np.ndarray, rasterio.Affine, rasterio.crs.CRS]:
+) -> tuple[np.ndarray, rasterio.Affine, rasterio.crs.CRS]:
     """
     Reads only the bounding box region from a remote Cloud-Optimized GeoTIFF.
     
@@ -55,9 +55,9 @@ def read_windowed_band(
 
 def load_multispectral_cube(
     item,
-    bbox_wgs84: List[float],
-    bands: List[str] = ("B03", "B08", "B11", "SCL"),
-) -> Dict[str, np.ndarray]:
+    bbox_wgs84: list[float],
+    bands: list[str] = ("B03", "B08", "B11", "SCL"),
+) -> dict[str, np.ndarray]:
     """
     Loads required Sentinel-2 bands for a given STAC item within a bounding box.
     Automatically aligns 20m bands (like B11 SWIR and SCL) to the 10m grid (B03 Green, B08 NIR).

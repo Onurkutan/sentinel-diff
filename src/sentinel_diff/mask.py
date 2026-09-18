@@ -2,7 +2,7 @@
 Scene Classification Layer (SCL) interpretation and cloud masking for Sentinel-2.
 """
 
-from typing import Set
+
 import numpy as np
 
 # Standard Sentinel-2 SCL class definitions
@@ -19,7 +19,7 @@ SCL_CLOUD_HIGH_PROBABILITY = 9
 SCL_THIN_CIRRUS = 10
 SCL_SNOW = 11
 
-DEFAULT_INVALID_CLASSES: Set[int] = {
+DEFAULT_INVALID_CLASSES: set[int] = {
     SCL_NO_DATA,
     SCL_SATURATED_OR_DEFECTIVE,
     SCL_CLOUD_SHADOWS,
@@ -31,7 +31,7 @@ DEFAULT_INVALID_CLASSES: Set[int] = {
 
 def build_valid_mask(
     scl_band: np.ndarray,
-    invalid_classes: Set[int] = DEFAULT_INVALID_CLASSES,
+    invalid_classes: set[int] = DEFAULT_INVALID_CLASSES,
 ) -> np.ndarray:
     """
     Constructs a boolean mask where True indicates clean, usable surface pixels

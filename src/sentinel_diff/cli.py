@@ -3,26 +3,35 @@ Full Command-Line Interface for sentinel-diff.
 Provides search, analysis, presets, and diagnostic commands.
 """
 
-from pathlib import Path
 import json
+from pathlib import Path
+
 import click
-import numpy as np
 
 from sentinel_diff import __version__
-from sentinel_diff.catalog import RESERVOIR_PRESETS, get_preset_bbox, search_sentinel_scenes, select_scene_pair
-from sentinel_diff.indices import compute_mndwi, compute_ndvi
-from sentinel_diff.mask import build_valid_mask
-from sentinel_diff.cva import compute_difference, compute_cva_magnitude, otsu_threshold, filter_noise_morphology
-from sentinel_diff.metrics import summarize_water_change
+from sentinel_diff.catalog import (
+    RESERVOIR_PRESETS,
+    get_preset_bbox,
+    search_sentinel_scenes,
+    select_scene_pair,
+)
+from sentinel_diff.cva import (
+    compute_cva_magnitude,
+    compute_difference,
+    filter_noise_morphology,
+    otsu_threshold,
+)
+from sentinel_diff.indices import compute_mndwi
 from sentinel_diff.ingest import load_multispectral_cube
-from sentinel_diff.viz import plot_change_summary, generate_interactive_slider_html
+from sentinel_diff.mask import build_valid_mask
+from sentinel_diff.metrics import summarize_water_change
+from sentinel_diff.viz import generate_interactive_slider_html, plot_change_summary
 
 
 @click.group()
 @click.version_option(version=__version__)
 def main():
     """sentinel-diff: Multi-temporal satellite change detection from open Sentinel-2 data."""
-    pass
 
 
 @main.command()

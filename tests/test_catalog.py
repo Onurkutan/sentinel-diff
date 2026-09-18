@@ -6,8 +6,6 @@ selection logic in isolation.
 
 from __future__ import annotations
 
-import pytest
-
 from sentinel_diff.catalog import (
     _extract_cloud_cover,
     dedup_scenes,
@@ -81,7 +79,7 @@ class TestSelectScenePair:
             _scene("S2A_MSIL2A_20230822T084601_R007_T35TPF_20230822T120000",
                    "2023-08-22T08:46:01Z", 0.5),
         ]
-        b, a = select_scene_pair(before, after)
+        _b, a = select_scene_pair(before, after)
         assert "20230802" in a["id"]
 
     def test_cloud_tiebreaker_on_equal_doy(self):
@@ -96,7 +94,7 @@ class TestSelectScenePair:
             _scene("S2A_MSIL2A_20230815T091601_R050_T35TPF_20230815T130000",
                    "2023-08-15T09:16:01Z", 1.0),   # DOY 227, gap=0, sum=4
         ]
-        b, a = select_scene_pair(before, after)
+        _b, a = select_scene_pair(before, after)
         assert a["cloud_cover"] == 1.0
 
 

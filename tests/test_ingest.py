@@ -9,10 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Tuple
 
 import numpy as np
-import pytest
 import rasterio
 from rasterio.crs import CRS
 from rasterio.enums import Resampling
@@ -33,7 +31,7 @@ def _write_test_geotiff(
     data: np.ndarray,
     crs: CRS = EPSG_32635,
     pixel_size: float = 20.0,
-    origin: Tuple[float, float] = (ORIGIN_X, ORIGIN_Y),
+    origin: tuple[float, float] = (ORIGIN_X, ORIGIN_Y),
 ) -> Path:
     """Write a single-band uint8 GeoTIFF with the given *data*."""
     transform = from_origin(origin[0], origin[1], pixel_size, pixel_size)

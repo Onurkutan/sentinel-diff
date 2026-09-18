@@ -6,17 +6,17 @@ Queries open STAC catalogs (e.g. Microsoft Planetary Computer or AWS Earth Searc
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from pystac_client import Client
 import planetary_computer as pc
+from pystac_client import Client
 
 # Microsoft Planetary Computer public STAC endpoint (free, no account needed for basic search)
 DEFAULT_STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 COLLECTION_SENTINEL_2 = "sentinel-2-l2a"
 
 # Reference Bounding Boxes for Istanbul Water Reservoirs [min_lon, min_lat, max_lon, max_lat]
-RESERVOIR_PRESETS: Dict[str, List[float]] = {
+RESERVOIR_PRESETS: dict[str, list[float]] = {
     "alibeykoy": [28.87, 41.10, 28.96, 41.17],
     "terkos": [28.53, 41.25, 28.73, 41.38],
     "omerli": [29.28, 41.00, 29.45, 41.10],
@@ -25,7 +25,7 @@ RESERVOIR_PRESETS: Dict[str, List[float]] = {
 }
 
 
-def get_preset_bbox(name: str) -> List[float]:
+def get_preset_bbox(name: str) -> list[float]:
     """Returns the bounding box coordinates for a named preset."""
     name_clean = name.lower().replace("-", "_").strip()
     if name_clean not in RESERVOIR_PRESETS:
@@ -34,7 +34,7 @@ def get_preset_bbox(name: str) -> List[float]:
     return RESERVOIR_PRESETS[name_clean]
 
 
-def _extract_cloud_cover(properties: Dict[str, Any]) -> float:
+def _extract_cloud_cover(properties: dict[str, Any]) -> float:
     """Extract cloud cover from STAC item properties.
 
     Returns 100.0 only when the value is genuinely missing (``None``).
@@ -45,12 +45,12 @@ def _extract_cloud_cover(properties: Dict[str, Any]) -> float:
 
 
 def search_sentinel_scenes(
-    bbox: List[float],
+    bbox: list[float],
     datetime_range: str,
     max_cloud_cover: float = 15.0,
     max_items: int = 10,
     stac_url: str = DEFAULT_STAC_URL,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Discovers available Sentinel-2 scenes matching bounding box and date criteria.
 
     Results are sorted chronologically by acquisition datetime.
@@ -115,13 +115,13 @@ def _day_of_year(dt_iso: str) -> int:
     return dt.timetuple().tm_yday
 
 
-def dedup_scenes(scenes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def dedup_scenes(scenes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Remove reprocessing duplicates from a list of STAC scene dicts.
 
     When multiple items share the same product key (first 5 ID segments),
     only the one with the latest processing timestamp (6th segment) is kept.
     """
-    best: Dict[str, Dict[str, Any]] = {}
+    best: dict[str, dict[str, Any]] = {}
     for scene in scenes:
         key = _product_key(scene["id"])
         ts = _processing_timestamp(scene["id"])
@@ -131,9 +131,9 @@ def dedup_scenes(scenes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def select_scene_pair(
-    before_scenes: List[Dict[str, Any]],
-    after_scenes: List[Dict[str, Any]],
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    before_scenes: list[dict[str, Any]],
+    after_scenes: list[dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Select the best (before, after) scene pair for change detection.
 
     Selection criteria (in priority order):
@@ -156,8 +156,8 @@ def select_scene_pair(
     if not before_deduped or not after_deduped:
         raise ValueError("No scenes available for pairing after deduplication.")
 
-    best_pair: Optional[Tuple[Dict[str, Any], Dict[str, Any]]] = None
-    best_score: Optional[Tuple[int, float]] = None
+    best_pair: tuple[dict[str, Any], dict[str, Any]] | None = None
+    best_score: tuple[int, float] | None = None
 
     for b in before_deduped:
         b_doy = _day_of_year(b["datetime"])

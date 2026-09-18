@@ -3,14 +3,14 @@ Vectorized spectral index calculations from Sentinel-2 bands.
 All calculations use NumPy arrays and handle zero-division and invalid domain values gracefully.
 """
 
-from typing import Optional
+
 import numpy as np
 
 
 def safe_normalized_difference(
     band_a: np.ndarray,
     band_b: np.ndarray,
-    valid_mask: Optional[np.ndarray] = None,
+    valid_mask: np.ndarray | None = None,
     eps: float = 1e-7,
 ) -> np.ndarray:
     """
@@ -37,7 +37,7 @@ def safe_normalized_difference(
 def compute_mndwi(
     green: np.ndarray,
     swir: np.ndarray,
-    valid_mask: Optional[np.ndarray] = None,
+    valid_mask: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Modified Normalized Difference Water Index (Xu, 2006).
@@ -51,7 +51,7 @@ def compute_mndwi(
 def compute_ndwi(
     green: np.ndarray,
     nir: np.ndarray,
-    valid_mask: Optional[np.ndarray] = None,
+    valid_mask: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Normalized Difference Water Index (McFeeters, 1996).
@@ -63,7 +63,7 @@ def compute_ndwi(
 def compute_ndvi(
     nir: np.ndarray,
     red: np.ndarray,
-    valid_mask: Optional[np.ndarray] = None,
+    valid_mask: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Normalized Difference Vegetation Index (Rouse et al., 1974).
@@ -76,7 +76,7 @@ def compute_ndvi(
 def compute_ndbi(
     swir: np.ndarray,
     nir: np.ndarray,
-    valid_mask: Optional[np.ndarray] = None,
+    valid_mask: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Normalized Difference Built-up Index (Zha et al., 2003).

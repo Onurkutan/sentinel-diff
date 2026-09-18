@@ -1,9 +1,8 @@
 import numpy as np
+
 from sentinel_diff.indices import (
     compute_mndwi,
-    compute_ndwi,
     compute_ndvi,
-    compute_ndbi,
     safe_normalized_difference,
 )
 

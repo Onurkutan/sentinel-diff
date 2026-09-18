@@ -1,4 +1,5 @@
 import numpy as np
+
 from sentinel_diff.metrics import (
     pixel_count_to_hectares,
     pixel_count_to_sq_km,
