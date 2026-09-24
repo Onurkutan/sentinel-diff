@@ -38,6 +38,6 @@ def test_filter_noise_morphology():
 
     cleaned = filter_noise_morphology(arr, min_pixel_size=9)
     # The isolated pixel should be removed
-    assert cleaned[1, 1] == False
+    assert not cleaned[1, 1]
     # The large component should be preserved
-    assert np.all(cleaned[4:8, 4:8] == True)
+    assert np.all(cleaned[4:8, 4:8])

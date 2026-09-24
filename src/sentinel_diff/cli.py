@@ -58,7 +58,7 @@ def search(preset: str, date_range: str, max_cloud: float, limit: int):
     try:
         bbox = get_preset_bbox(preset)
     except ValueError as e:
-        raise click.ClickException(str(e))
+        raise click.ClickException(str(e)) from e
 
     click.echo(f"Searching STAC for preset '{preset}' (BBox: {bbox}) between {date_range}...")
     scenes = search_sentinel_scenes(bbox, date_range, max_cloud_cover=max_cloud, max_items=limit)
