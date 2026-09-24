@@ -40,7 +40,7 @@ This document tracks the verified implementation status of `sentinel-diff`. All 
 - [x] Real offline unit tests: `test_ingest.py` (GeoTIFF rasters via `tmp_path`), `test_catalog.py` (synthetic scene dicts), `test_cva.py`, `test_indices.py`, `test_mask.py`, `test_metrics.py`
 - [x] Offline end-to-end test of `analyze` (`test_analyze_e2e.py`: STAC search monkeypatched, stub items backed by local GeoTIFFs, exact hectare assertions)
 - [x] `METHODOLOGY.md`, `DATA.md`
-- [ ] v0.1.0 git tag
+- [x] v0.1.0 git tag (annotated, see CHANGELOG.md)
 
 ---
 
