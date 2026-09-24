@@ -94,8 +94,13 @@ def test_analyze_end_to_end_default_cleaning(tmp_path: Path, monkeypatch):
 
     # Artifacts
     assert (out_dir / "figures" / "synthetic_change_analysis.png").stat().st_size > 0
-    html = (out_dir / "interactive" / "synthetic_report.html").read_text()
+    html_file = out_dir / "interactive" / "synthetic_report.html"
+    html = html_file.read_text()
     assert "Net Surface Change" in html
+    # Single-file report: imagery embedded, no relative links, under the 2 MB hygiene limit
+    assert "data:image/png;base64," in html
+    assert 'src="../' not in html
+    assert html_file.stat().st_size < 2 * 1024 * 1024
 
     # Water accounting on the joint-valid grid (2x2 cloud notch removed)
     assert metrics["pixel_resolution_m"] == 10.0

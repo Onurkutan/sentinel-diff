@@ -33,7 +33,7 @@ This document tracks the verified implementation status of `sentinel-diff`. All 
 
 ### Phase 5 – Metrics & reporting
 - [x] Hectare metrics, matplotlib 4-panel figure
-- [ ] Single-file HTML slider map (current HTML is a static dashboard: no slider, links to PNG via relative path)
+- [x] Single-file HTML slider map: before/after MNDWI swipe slider (CSS `clip-path` + `<input type="range">`), toggleable transition overlay, metric cards, legend and provenance table; the three rasters are embedded as base64 palette PNGs (longest side <= 900 px), no external assets or relative links (`test_viz.py::test_generate_interactive_slider_html_is_single_file`, HTML assertions in `test_analyze_e2e.py`)
 
 ### Phase 6 – Docs, tests, release
 - [x] Real offline unit tests: `test_ingest.py` (GeoTIFF rasters via `tmp_path`), `test_catalog.py` (synthetic scene dicts), `test_cva.py`, `test_indices.py`, `test_mask.py`, `test_metrics.py`
