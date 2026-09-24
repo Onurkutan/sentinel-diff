@@ -20,7 +20,7 @@ Implementation progress is tracked against the codebase in [`PLAN.md`](PLAN.md).
 * **Consistent Morphological Cleaning:** A 3×3 opening/closing plus minimum-component filter (`--min-component-px`, default 6 px = 600 m²) is applied to each scene's water mask **once**; the hectare metrics and the figure are derived from the same cleaned masks, so the numbers and the picture always agree.
 * **Diagnostic Change Analysis:** Bi-temporal Change Vector Analysis (CVA) magnitude heatmap with the automated Otsu change threshold outlined on the panel.  
   *(Note: CVA magnitude and Otsu thresholding are diagnostic layers only; water classification and hectare accounting use MNDWI > 0).*
-* **Quantitative Accounting & Reports:** Computes surface water transition metrics (persistent water, shrinkage, expansion, net change) in hectares with full provenance metadata, outputs a 4-panel publication-ready diagnostic figure, and generates a static HTML summary dashboard linking to the figure (*single-file interactive swipe slider planned*).
+* **Quantitative Accounting & Reports:** Computes surface water transition metrics (persistent water, shrinkage, expansion, net change) in hectares with full provenance metadata, outputs a 4-panel publication-ready diagnostic figure, and generates a standalone single-file HTML report (`reports/interactive/<preset>_report.html`): a before/after MNDWI swipe slider with a toggleable water-transition overlay, metric cards, legend and a provenance table (scene IDs, dates, cloud cover, processing baselines, BOA offsets, parameters). All imagery is embedded as base64 PNG, so the file has no external scripts, fonts, images or relative links.
 * **GIS Export (QGIS-ready):** `analyze` writes the classified transition map as a georeferenced single-band uint8 GeoTIFF in the scene's native UTM CRS (`reports/rasters/<preset>_transition.tif`; codes 0 background, 1 persistent water, 2 water loss, 3 water gain, 255 nodata; deflate-compressed) and as a WGS-84 GeoJSON FeatureCollection (`reports/vectors/<preset>_transition.geojson`) with one polygon per connected component carrying `class_code`, `class_name` and `area_ha` computed from the native pixel count. Only `rasterio` and the standard library are used (no geopandas/fiona). Disable with `--no-export`. Verified by `tests/test_export.py` and the export assertions in `tests/test_analyze_e2e.py`.
 * **Offline End-to-End Test:** `tests/test_analyze_e2e.py` runs the complete `analyze` command against stub STAC items backed by local GeoTIFFs and asserts exact hectare values.
 
@@ -78,12 +78,12 @@ sentinel-diff/
 │   ├── cva.py           # Change Vector Analysis & Otsu/MAD thresholding
 │   ├── metrics.py       # Hectare & transition area accounting
 │   ├── export.py        # GeoTIFF + GeoJSON export of the transition map (QGIS-ready)
-│   ├── viz.py           # 4-panel diagnostic figure & HTML summary report generator
+│   ├── viz.py           # 4-panel diagnostic figure & single-file HTML swipe-slider report
 │   └── cli.py           # Command-line interface
 ├── reports/
 │   ├── alibeykoy_metrics.json
 │   ├── figures/alibeykoy_change_analysis.png
-│   ├── interactive/alibeykoy_report.html
+│   ├── interactive/alibeykoy_report.html   # standalone swipe-slider report (imagery embedded)
 │   ├── rasters/         # <preset>_transition.tif (uint8 class raster, git-ignored like all .tif)
 │   └── vectors/         # <preset>_transition.geojson (WGS-84 polygons, committable)
 ├── tests/               # Unit + offline end-to-end tests (real GeoTIFF rasters, stub STAC items)

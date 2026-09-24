@@ -34,7 +34,7 @@ This document tracks the verified implementation status of `sentinel-diff`. All 
 ### Phase 5 – Metrics & reporting
 - [x] Hectare metrics, matplotlib 4-panel figure
 - [x] GeoTIFF + GeoJSON export of the transition map (`export.py`, `--no-export` flag). Verified: `test_export.py::test_write_transition_geotiff_roundtrip`, `test_export.py::test_write_transition_geojson_features_areas_and_wgs84`, `test_analyze_e2e.py::test_analyze_end_to_end_default_cleaning` (GeoJSON water_loss area == `water_loss_hectares` == 0.80 ha), `test_analyze_e2e.py::test_analyze_no_export_skips_gis_files`
-- [ ] Single-file HTML slider map (current HTML is a static dashboard: no slider, links to PNG via relative path)
+- [x] Single-file HTML slider map: before/after MNDWI swipe slider (CSS `clip-path` + `<input type="range">`), toggleable transition overlay, metric cards, legend and provenance table; the three rasters are embedded as base64 palette PNGs (longest side <= 900 px), no external assets or relative links (`test_viz.py::test_generate_interactive_slider_html_is_single_file`, HTML assertions in `test_analyze_e2e.py`)
 
 ### Phase 6 – Docs, tests, release
 - [x] Real offline unit tests: `test_ingest.py` (GeoTIFF rasters via `tmp_path`), `test_catalog.py` (synthetic scene dicts), `test_cva.py`, `test_indices.py`, `test_mask.py`, `test_metrics.py`

@@ -284,10 +284,16 @@ def analyze(
     # Generate interactive HTML dashboard report
     html_file = out_path / "interactive" / f"{preset}_report.html"
     generate_interactive_slider_html(
-        figure_rel_path=f"../figures/{preset}_change_analysis.png",
+        before_index=mndwi_before,
+        after_index=mndwi_after,
+        persistent_water_mask=persistent_water,
+        water_loss_mask=water_loss,
+        water_gain_mask=water_gain,
         output_html_path=html_file,
         title=f"Istanbul {preset.upper()} Reservoir Water Change Analysis",
         metrics=metrics,
+        before_label=before_pick["datetime"][:10],
+        after_label=after_pick["datetime"][:10],
     )
     click.echo(f"Saved interactive report to: {html_file}")
 
