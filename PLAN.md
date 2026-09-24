@@ -20,7 +20,7 @@ This document tracks the verified implementation status of `sentinel-diff`. All 
 - [x] Microsoft Planetary Computer STAC + windowed COG reading
 - [x] BOA offset harmonisation from `s2:processing_baseline` (`ingest.boa_offset_for_item`, verified by `TestBoaOffset`)
 - [x] Scene pairing with reprocessing dedup and circular DOY distance
-- [ ] AWS Earth Search (asset keys are PC-specific: `B03`/`B08`/`B11`/`SCL`; Earth Search uses `green`/`nir`/`swir16`/`scl`)
+- [x] AWS Earth Search (`catalog.PROVIDERS` registry, `--provider earthsearch`; canonical `B03`/`B08`/`B11`/`SCL` mapped to `green`/`nir`/`swir16`/`scl`, `earthsearch:boa_offset_applied` honoured; verified by `TestProviders`, `TestDedup.test_earthsearch_*`, `TestAssetMap`, `TestBoaOffset.test_earthsearch_boa_offset_applied_flag_disables_offset`, `test_analyze_end_to_end_earthsearch_provider`)
 
 ### Phase 3 – Spectral core
 - [x] SCL valid mask, MNDWI

@@ -12,7 +12,7 @@ The current pipeline queries public SpatioTemporal Asset Catalogs (STAC), stream
 
 Implementation progress is tracked against the codebase in [`PLAN.md`](PLAN.md). Only features wired into the executable pipeline are claimed below:
 
-* **Zero Credentials / Open Data:** Queries public Sentinel-2 L2A collections via Microsoft Planetary Computer STAC endpoint anonymously (*AWS Earth Search support planned*).
+* **Zero Credentials / Open Data:** Queries public Sentinel-2 L2A collections anonymously via the Microsoft Planetary Computer or AWS Earth Search STAC endpoints (`--provider pc|earthsearch`).
 * **Windowed Streaming:** Fetches bounding box subsets on demand via Cloud-Optimized GeoTIFF (COG) HTTP range requests—no full granule downloads required.
 * **Radiometric Harmonisation:** Reads `s2:processing_baseline` from each STAC item and removes the +1000 DN BOA offset introduced with processing baseline 04.00, so pre-2022 and Collection-1 reprocessed scenes are compared on the same reflectance scale.
 * **Scene Pairing:** Deduplicates reprocessed products, then picks the pair with the smallest circular day-of-year distance (cloud cover as tiebreaker) to minimise seasonal bias.
@@ -102,6 +102,9 @@ sentinel-diff presets
 
 # Search for cloudless Sentinel-2 scenes in STAC
 sentinel-diff search --preset alibeykoy --date-range "2023-07-01/2023-08-31" --max-cloud 5
+
+# Same search against AWS Earth Search instead of Planetary Computer
+sentinel-diff search --preset alibeykoy --date-range "2023-07-01/2023-08-31" --max-cloud 5 --provider earthsearch
 
 # Run bi-temporal change analysis
 sentinel-diff analyze --preset alibeykoy --before-date "2021-08-01/2021-08-31" --after-date "2023-08-01/2023-08-31"
