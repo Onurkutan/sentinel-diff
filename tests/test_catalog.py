@@ -97,6 +97,22 @@ class TestSelectScenePair:
         _b, a = select_scene_pair(before, after)
         assert a["cloud_cover"] == 1.0
 
+    def test_doy_distance_wraps_around_new_year(self):
+        """DOY 364 (30 Dec) is 3 days from DOY 2 (2 Jan), not 362 days.
+        Without circular distance the March scene (gap 61) would win."""
+        before = [
+            _scene("S2B_MSIL2A_20211230T084609_R107_T35TPF_20211230T163932",
+                   "2021-12-30T08:46:09Z", 1.0),  # DOY 364
+        ]
+        after = [
+            _scene("S2A_MSIL2A_20230102T084601_R007_T35TPF_20230102T120000",
+                   "2023-01-02T08:46:01Z", 1.0),   # DOY 2   -> circular gap 3
+            _scene("S2A_MSIL2A_20230301T084601_R007_T35TPF_20230301T120000",
+                   "2023-03-01T08:46:01Z", 1.0),   # DOY 60  -> gap 61
+        ]
+        _b, a = select_scene_pair(before, after)
+        assert "20230102" in a["id"]
+
 
 class TestCloudCoverExtraction:
     """Cloud cover of 0.0 must NOT be treated as 100.0."""

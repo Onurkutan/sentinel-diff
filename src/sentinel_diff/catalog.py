@@ -115,6 +115,13 @@ def _day_of_year(dt_iso: str) -> int:
     return dt.timetuple().tm_yday
 
 
+def _doy_distance(doy_a: int, doy_b: int) -> int:
+    """Circular day-of-year distance so that late December and early January
+    are treated as neighbours (e.g. DOY 365 vs DOY 2 -> 2, not 363)."""
+    d = abs(doy_a - doy_b)
+    return min(d, 365 - d)
+
+
 def dedup_scenes(scenes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Remove reprocessing duplicates from a list of STAC scene dicts.
 
@@ -165,7 +172,7 @@ def select_scene_pair(
         for a in after_deduped:
             a_doy = _day_of_year(a["datetime"])
             a_cc = a["cloud_cover"]
-            score = (abs(b_doy - a_doy), b_cc + a_cc)
+            score = (_doy_distance(b_doy, a_doy), b_cc + a_cc)
             if best_score is None or score < best_score:
                 best_score = score
                 best_pair = (b, a)
