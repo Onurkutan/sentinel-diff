@@ -14,7 +14,14 @@ from pathlib import Path
 import numpy as np
 from rasterio.enums import Resampling
 
-from sentinel_diff.ingest import load_multispectral_cube, read_windowed_band
+from sentinel_diff.ingest import (
+    apply_boa_offset,
+    boa_offset_for_item,
+    load_multispectral_cube,
+    parse_processing_baseline,
+    read_windowed_band,
+)
+from tests.conftest import bbox_wgs84_from_geotiff, make_scl_4x4, write_test_geotiff
 
 # ── read_windowed_band ───────────────────────────────────────────────────
 
@@ -99,3 +106,77 @@ class TestLoadMultispectralCube:
         assert cube["SCL"].shape == ref_shape, (
             f"SCL shape {cube['SCL'].shape} != B03 shape {ref_shape}"
         )
+
+
+# ── BOA offset harmonisation ─────────────────────────────────────────────
+
+
+def _item(baseline):
+    from types import SimpleNamespace
+
+    props = {} if baseline is None else {"s2:processing_baseline": baseline}
+    return SimpleNamespace(id="stub", assets={}, properties=props)
+
+
+class TestBoaOffset:
+    """Processing baseline >= 04.00 products carry a +1000 DN offset."""
+
+    def test_parse_processing_baseline(self):
+        assert parse_processing_baseline(_item("05.10")) == 5.10
+        assert parse_processing_baseline(_item("03.00")) == 3.0
+        assert parse_processing_baseline(_item(None)) is None
+        assert parse_processing_baseline(_item("n/a")) is None
+
+    def test_offset_by_baseline(self):
+        assert boa_offset_for_item(_item("03.01")) == 0
+        assert boa_offset_for_item(_item("04.00")) == 1000
+        assert boa_offset_for_item(_item("05.10")) == 1000
+        assert boa_offset_for_item(_item(None)) == 0
+
+    def test_apply_offset_clamps_and_does_not_wrap(self):
+        band = np.array([[1500, 800, 0]], dtype=np.uint16)
+        out = apply_boa_offset(band, 1000)
+        assert out.dtype == np.int32
+        assert out.tolist() == [[500, 0, 0]]
+
+    def test_cube_subtracts_offset_from_reflectance_but_not_scl(self, tmp_path: Path):
+        """A baseline-05.10 item must yield B03 = DN - 1000 while SCL is untouched."""
+        from types import SimpleNamespace
+
+        b03 = np.full((4, 4), 1500, dtype=np.uint16)
+        b11 = np.full((4, 4), 1200, dtype=np.uint16)
+        write_test_geotiff(tmp_path / "B03.tif", b03, pixel_size=10.0)
+        write_test_geotiff(tmp_path / "B11.tif", b11, pixel_size=10.0)
+        write_test_geotiff(tmp_path / "SCL.tif", make_scl_4x4(), pixel_size=10.0)
+        item = SimpleNamespace(
+            id="S2B_stub",
+            properties={"s2:processing_baseline": "05.10"},
+            assets={
+                "B03": SimpleNamespace(href=str(tmp_path / "B03.tif")),
+                "B11": SimpleNamespace(href=str(tmp_path / "B11.tif")),
+                "SCL": SimpleNamespace(href=str(tmp_path / "SCL.tif")),
+            },
+        )
+        bbox = bbox_wgs84_from_geotiff(tmp_path / "B03.tif")
+
+        cube = load_multispectral_cube(item, bbox, bands=("B03", "B11", "SCL"))
+
+        assert cube["boa_offset"] == 1000
+        assert int(cube["B03"].max()) == 500 and int(cube["B03"].min()) == 500
+        assert int(cube["B11"].max()) == 200
+        assert set(np.unique(cube["SCL"])) == {4, 9}
+
+    def test_cube_leaves_legacy_baseline_untouched(self, tmp_path: Path):
+        from types import SimpleNamespace
+
+        b03 = np.full((4, 4), 1500, dtype=np.uint16)
+        write_test_geotiff(tmp_path / "B03.tif", b03, pixel_size=10.0)
+        item = SimpleNamespace(
+            id="S2B_stub",
+            properties={"s2:processing_baseline": "03.01"},
+            assets={"B03": SimpleNamespace(href=str(tmp_path / "B03.tif"))},
+        )
+        bbox = bbox_wgs84_from_geotiff(tmp_path / "B03.tif")
+        cube = load_multispectral_cube(item, bbox, bands=("B03",))
+        assert cube["boa_offset"] == 0
+        assert int(cube["B03"].max()) == 1500
