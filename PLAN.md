@@ -14,9 +14,12 @@ This document tracks the verified implementation status of `sentinel-diff`. All 
 - [x] `pyproject.toml`, `.gitignore`, `scripts/check_repo_hygiene.py`
 - [x] Test fixtures (`tests/conftest.py` with shared GeoTIFF helpers and pytest fixtures)
 - [x] CI (`.github/workflows/ci.yml`: lint + test + hygiene on Python 3.10–3.12)
+- [x] Version-independent lint (`[tool.ruff]` rule set pinned in `pyproject.toml`; Makefile runs tooling via `python -m`)
 
 ### Phase 2 – Data ingestion
 - [x] Microsoft Planetary Computer STAC + windowed COG reading
+- [x] BOA offset harmonisation from `s2:processing_baseline` (`ingest.boa_offset_for_item`, verified by `TestBoaOffset`)
+- [x] Scene pairing with reprocessing dedup and circular DOY distance
 - [ ] AWS Earth Search (asset keys are PC-specific: `B03`/`B08`/`B11`/`SCL`; Earth Search uses `green`/`nir`/`swir16`/`scl`)
 
 ### Phase 3 – Spectral core
@@ -24,9 +27,9 @@ This document tracks the verified implementation status of `sentinel-diff`. All 
 - [~] NDVI, NDBI (implemented in `indices.py`, not called by `analyze`)
 
 ### Phase 4 – Change detection
-- [~] CVA magnitude + Otsu (computed; `change_mask` passed to `viz.py` but unused in transition rendering, no impact on metrics)
+- [x] CVA magnitude + Otsu (diagnostic layer: Otsu change mask outlined on the magnitude panel; `otsu_threshold_abs_delta_mndwi` recorded in metrics JSON; no impact on hectare accounting by design)
 - [~] MAD threshold (implemented in `cva.py`, never called)
-- [~] Morphological filter (applied only to figure masks; metrics computed from raw binary masks)
+- [x] Morphological filter applied once to each scene's water mask; metrics AND figure derive from the same cleaned masks (`--min-component-px`, verified by `test_analyze_e2e.py`)
 
 ### Phase 5 – Metrics & reporting
 - [x] Hectare metrics, matplotlib 4-panel figure
@@ -34,6 +37,7 @@ This document tracks the verified implementation status of `sentinel-diff`. All 
 
 ### Phase 6 – Docs, tests, release
 - [x] Real offline unit tests: `test_ingest.py` (GeoTIFF rasters via `tmp_path`), `test_catalog.py` (synthetic scene dicts), `test_cva.py`, `test_indices.py`, `test_mask.py`, `test_metrics.py`
+- [x] Offline end-to-end test of `analyze` (`test_analyze_e2e.py`: STAC search monkeypatched, stub items backed by local GeoTIFFs, exact hectare assertions)
 - [x] `METHODOLOGY.md`, `DATA.md`
 - [ ] v0.1.0 git tag
 
@@ -48,6 +52,13 @@ This document tracks the verified implementation status of `sentinel-diff`. All 
 4. **[RESOLVED] Hardcoded max-cloud in analyze**: Was `15.0`; now configurable via `--max-cloud` (default `10.0`).
 5. **[RESOLVED] Reproducibility metadata in metrics**: `reports/*_metrics.json` records complete provenance (preset, bbox, scene IDs, datetimes, cloud %).
 6. **[RESOLVED] Linter findings**: `ruff check src/ tests/` returns 0 errors. Fixed import sorting (I001), unused imports (F401), deprecated type annotations (UP006/UP035), unused variables (F841, RUF059).
+7. **[RESOLVED] Sentinel-2 BOA processing baseline offset**: products with baseline $\ge 04.00$ carry a $+1000$ DN offset. `load_multispectral_cube` now subtracts it from reflectance bands (never SCL) based on `s2:processing_baseline`; the applied offset is recorded in `metrics.metadata`. Verified: `TestBoaOffset::test_cube_subtracts_offset_from_reflectance_but_not_scl`. Effect on the Alibeyköy run: hectares unchanged (sign-based classification), $|\Delta\text{MNDWI}|$ panel and Otsu threshold corrected.
+8. **[RESOLVED] Figure/metrics mismatch**: morphological cleaning was applied only to the figure's loss/gain layers while metrics used raw masks. Now cleaned once per scene and shared. Verified: `test_analyze_e2e.py::test_analyze_end_to_end_default_cleaning` (accounting self-consistency) and `::test_analyze_without_cleaning_keeps_isolated_pixel`. Effect on Alibeyköy: baseline 284.73 → 249.60 ha, net −55.78 → −61.83 ha.
+9. **[RESOLVED] Morphological filter eroded the image border**: scipy `border_value=0` stripped a 1-px rim from regions touching the bbox edge. Fixed with edge-replicating padding. Verified: `test_cva.py::test_filter_noise_morphology_preserves_image_border` (40 px kept of 60 before the fix).
+10. **[RESOLVED] DOY distance ignored the year boundary**: 30 Dec vs 2 Jan scored 362 days apart. Now circular. Verified: `TestSelectScenePair::test_doy_distance_wraps_around_new_year`.
+11. **[RESOLVED] Lint depended on the installed ruff version**: no `[tool.ruff]` section, so ruff 0.15 reported 10 E712 findings that 0.16 did not. Rule set pinned; findings fixed.
 
 ### Open Known Issues
-1. **Sentinel-2 BOA processing baseline offset**: Sentinel-2 Level-2A products under processing baseline $\ge 04.00$ introduce a $+1000$ digital number offset that is not yet corrected. In multi-year comparisons (e.g. 2021 vs 2023), the $|\Delta\text{MNDWI}|$ panel and Otsu threshold are affected by this artifact. Because water classification relies on the sign ($\text{MNDWI} > 0$), hectare metrics are unaffected.
+1. **Urban false positives in MNDWI > 0**: bright roofs and impervious surfaces west of Alibeyköy classify as water in both scenes and show up as speckle in the transition map (reduced but not eliminated by `--min-component-px`). Candidate fix: cross-check against SCL class 6 (`mask.isolate_water_scl`) or a stricter MNDWI threshold; not implemented.
+2. **Morphological opening removes features narrower than 3 px**: streams and thin channels (< 30 m wide) are dropped from the water masks by design of the 3×3 opening. Documented in `docs/METHODOLOGY.md`; use `--min-component-px 0` to disable.
+3. **Scene grids must match**: `analyze` raises if the two windows differ in shape (different tile/orbit). No automatic reprojection onto a common grid yet.
