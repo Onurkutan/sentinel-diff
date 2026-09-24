@@ -33,7 +33,12 @@ WATER_GREEN, WATER_SWIR = 3000, 500
 LAND_GREEN, LAND_SWIR = 500, 3000
 
 
-def _write_scene(dirpath: Path, water_rows: int, speck: bool, cloud_corner: bool):
+PC_KEYS = ("B03", "B08", "B11", "SCL")
+EARTHSEARCH_KEYS = ("green", "nir", "swir16", "scl")
+
+
+def _write_scene(dirpath: Path, water_rows: int, speck: bool, cloud_corner: bool,
+                 keys: tuple[str, ...] = PC_KEYS):
     dirpath.mkdir()
     green = np.full((20, 20), LAND_GREEN, dtype=np.uint16)
     swir = np.full((20, 20), LAND_SWIR, dtype=np.uint16)
@@ -46,33 +51,44 @@ def _write_scene(dirpath: Path, water_rows: int, speck: bool, cloud_corner: bool
     scl = np.full((10, 10), 4, dtype=np.uint8)  # vegetation everywhere
     if cloud_corner:
         scl[0, 0] = 9  # high-probability cloud
-    write_test_geotiff(dirpath / "B03.tif", green, pixel_size=10.0)
-    write_test_geotiff(dirpath / "B08.tif", nir, pixel_size=10.0)
-    write_test_geotiff(dirpath / "B11.tif", swir, pixel_size=10.0)
-    write_test_geotiff(dirpath / "SCL.tif", scl, pixel_size=20.0)
+    k_green, k_nir, k_swir, k_scl = keys
+    write_test_geotiff(dirpath / f"{k_green}.tif", green, pixel_size=10.0)
+    write_test_geotiff(dirpath / f"{k_nir}.tif", nir, pixel_size=10.0)
+    write_test_geotiff(dirpath / f"{k_swir}.tif", swir, pixel_size=10.0)
+    write_test_geotiff(dirpath / f"{k_scl}.tif", scl, pixel_size=20.0)
     return dirpath
 
 
-def _stub_scene(item_id: str, dt: str, scene_dir: Path, baseline: str):
+def _stub_scene(item_id: str, dt: str, scene_dir: Path, baseline: str,
+                keys: tuple[str, ...] = PC_KEYS, extra_props: dict | None = None):
     item = SimpleNamespace(
         id=item_id,
-        properties={"s2:processing_baseline": baseline},
-        assets={b: SimpleNamespace(href=str(scene_dir / f"{b}.tif")) for b in ("B03", "B08", "B11", "SCL")},
+        properties={"s2:processing_baseline": baseline, **(extra_props or {})},
+        assets={b: SimpleNamespace(href=str(scene_dir / f"{b}.tif")) for b in keys},
     )
     return {"id": item_id, "datetime": dt, "cloud_cover": 1.0, "assets": list(item.assets), "item_obj": item}
 
 
-def _run(tmp_path: Path, monkeypatch, extra_args: list[str]):
-    before_dir = _write_scene(tmp_path / "before", water_rows=10, speck=False, cloud_corner=False)
-    after_dir = _write_scene(tmp_path / "after", water_rows=6, speck=True, cloud_corner=True)
-    bbox = bbox_wgs84_from_geotiff(before_dir / "B03.tif")
+def _run(tmp_path: Path, monkeypatch, extra_args: list[str], provider: str = "pc"):
+    keys = EARTHSEARCH_KEYS if provider == "earthsearch" else PC_KEYS
+    before_dir = _write_scene(tmp_path / "before", water_rows=10, speck=False, cloud_corner=False, keys=keys)
+    after_dir = _write_scene(tmp_path / "after", water_rows=6, speck=True, cloud_corner=True, keys=keys)
+    bbox = bbox_wgs84_from_geotiff(before_dir / f"{keys[0]}.tif")
 
-    before = _stub_scene("S2B_MSIL2A_20210802T084559_R107_T35TPF_20210802T203106",
-                         "2021-08-02T08:45:59Z", before_dir, "03.00")
-    after = _stub_scene("S2B_MSIL2A_20230802T084609_R107_T35TPF_20241025T040038",
-                        "2023-08-02T08:46:09Z", after_dir, "05.10")
+    if provider == "earthsearch":
+        # Earth Search has already removed the +1000 DN offset and says so.
+        before = _stub_scene("S2B_35TPF_20210802_0_L2A", "2021-08-02T08:45:59Z", before_dir, "03.00",
+                             keys=keys, extra_props={"earthsearch:boa_offset_applied": False})
+        after = _stub_scene("S2B_35TPF_20230802_0_L2A", "2023-08-02T08:46:09Z", after_dir, "05.10",
+                            keys=keys, extra_props={"earthsearch:boa_offset_applied": True})
+    else:
+        before = _stub_scene("S2B_MSIL2A_20210802T084559_R107_T35TPF_20210802T203106",
+                             "2021-08-02T08:45:59Z", before_dir, "03.00")
+        after = _stub_scene("S2B_MSIL2A_20230802T084609_R107_T35TPF_20241025T040038",
+                            "2023-08-02T08:46:09Z", after_dir, "05.10")
 
     def fake_search(bbox_arg, datetime_range, **kwargs):
+        assert kwargs.get("provider") == provider
         return [before] if datetime_range.startswith("2021") else [after]
 
     monkeypatch.setattr(cli_module, "search_sentinel_scenes", fake_search)
@@ -83,7 +99,8 @@ def _run(tmp_path: Path, monkeypatch, extra_args: list[str]):
     result = runner.invoke(
         main,
         ["analyze", "--preset", "synthetic", "--before-date", "2021-08-01/2021-08-31",
-         "--after-date", "2023-08-01/2023-08-31", "--out-dir", str(out_dir), *extra_args],
+         "--after-date", "2023-08-01/2023-08-31", "--out-dir", str(out_dir),
+         "--provider", provider, *extra_args],
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
@@ -125,6 +142,9 @@ def test_analyze_end_to_end_default_cleaning(tmp_path: Path, monkeypatch):
     assert md["observation_boa_offset_dn"] == 1000
     assert md["observation_processing_baseline"] == 5.10
     assert md["min_component_px"] == 6
+    assert md["stac_provider"] == "pc"
+    assert md["stac_url"] == "https://planetarycomputer.microsoft.com/api/stac/v1"
+    assert md["stac_collection"] == "sentinel-2-l2a"
     assert "BOA offset: before=0 DN" in result.output
 
     # GIS export: GeoTIFF + GeoJSON of the transition map
@@ -158,6 +178,31 @@ def test_analyze_no_export_skips_gis_files(tmp_path: Path, monkeypatch):
     assert "Saved transition GeoTIFF" not in result.output
     assert (out_dir / "figures" / "synthetic_change_analysis.png").stat().st_size > 0
     assert metrics["water_loss_hectares"] == 0.80
+
+
+def test_analyze_end_to_end_earthsearch_provider(tmp_path: Path, monkeypatch):
+    """--provider earthsearch: assets keyed green/nir/swir16/scl are read through
+    the provider asset map; hectares are identical to the default (PC) run."""
+    result, metrics, out_dir = _run(tmp_path, monkeypatch, [], provider="earthsearch")
+
+    assert (out_dir / "figures" / "synthetic_change_analysis.png").stat().st_size > 0
+    assert metrics["total_analyzed_hectares"] == 3.96
+    assert metrics["baseline_water_hectares"] == 1.96
+    assert metrics["subsequent_water_hectares"] == 1.16
+    assert metrics["persistent_water_hectares"] == 1.16
+    assert metrics["water_loss_hectares"] == 0.80
+    assert metrics["water_gain_hectares"] == 0.0
+    assert metrics["net_change_hectares"] == -0.80
+
+    md = metrics["metadata"]
+    assert md["stac_provider"] == "earthsearch"
+    assert md["stac_url"] == "https://earth-search.aws.element84.com/v1"
+    assert md["stac_collection"] == "sentinel-2-l2a"
+    assert md["baseline_scene_id"] == "S2B_35TPF_20210802_0_L2A"
+    # Provider already removed the offset on the baseline-05.10 scene.
+    assert md["observation_boa_offset_dn"] == 0
+    assert md["baseline_boa_offset_dn"] == 0
+    assert "provider=earthsearch" in result.output
 
 
 def test_analyze_without_cleaning_keeps_isolated_pixel(tmp_path: Path, monkeypatch):

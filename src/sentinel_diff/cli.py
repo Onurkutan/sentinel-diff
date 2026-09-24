@@ -10,8 +10,10 @@ import click
 
 from sentinel_diff import __version__
 from sentinel_diff.catalog import (
+    PROVIDERS,
     RESERVOIR_PRESETS,
     get_preset_bbox,
+    get_provider,
     search_sentinel_scenes,
     select_scene_pair,
 )
@@ -58,15 +60,26 @@ def presets():
 @click.option("--date-range", required=True, help="ISO-8601 date range (e.g. 2023-07-01/2023-09-30).")
 @click.option("--max-cloud", default=10.0, help="Maximum cloud cover percentage (default: 10.0).")
 @click.option("--limit", default=5, help="Max scenes to list.")
-def search(preset: str, date_range: str, max_cloud: float, limit: int):
+@click.option(
+    "--provider",
+    type=click.Choice(list(PROVIDERS), case_sensitive=False),
+    default="pc",
+    show_default=True,
+    help="STAC provider: Microsoft Planetary Computer (pc) or AWS Earth Search (earthsearch).",
+)
+def search(preset: str, date_range: str, max_cloud: float, limit: int, provider: str):
     """Search for available cloudless Sentinel-2 scenes in STAC."""
     try:
         bbox = get_preset_bbox(preset)
     except ValueError as e:
         raise click.ClickException(str(e)) from e
 
-    click.echo(f"Searching STAC for preset '{preset}' (BBox: {bbox}) between {date_range}...")
-    scenes = search_sentinel_scenes(bbox, date_range, max_cloud_cover=max_cloud, max_items=limit)
+    click.echo(
+        f"Searching STAC ({provider}) for preset '{preset}' (BBox: {bbox}) between {date_range}..."
+    )
+    scenes = search_sentinel_scenes(
+        bbox, date_range, max_cloud_cover=max_cloud, max_items=limit, provider=provider
+    )
     
     if not scenes:
         click.echo("No scenes found matching criteria.")
@@ -101,6 +114,13 @@ def search(preset: str, date_range: str, max_cloud: float, limit: int):
     default=False,
     help="Skip writing the GeoTIFF/GeoJSON transition map export.",
 )
+@click.option(
+    "--provider",
+    type=click.Choice(list(PROVIDERS), case_sensitive=False),
+    default="pc",
+    show_default=True,
+    help="STAC provider: Microsoft Planetary Computer (pc) or AWS Earth Search (earthsearch).",
+)
 def analyze(
     preset: str,
     before_date: str,
@@ -109,17 +129,19 @@ def analyze(
     min_component_px: int,
     out_dir: str,
     no_export: bool,
+    provider: str,
 ):
     """Run full change detection pipeline between two temporal observations."""
     bbox = get_preset_bbox(preset)
+    stac_provider = get_provider(provider)
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
     click.echo(f"=== sentinel-diff Analysis: {preset.upper()} ===")
-    click.echo(f"    max-cloud={max_cloud}%  min-component-px={min_component_px}")
+    click.echo(f"    max-cloud={max_cloud}%  min-component-px={min_component_px}  provider={stac_provider.name}")
     click.echo(f"1. Searching baseline scenes ({before_date})...")
     before_scenes = search_sentinel_scenes(
-        bbox, before_date, max_cloud_cover=max_cloud, max_items=20
+        bbox, before_date, max_cloud_cover=max_cloud, max_items=20, provider=provider
     )
     if not before_scenes:
         raise click.ClickException(f"No clear baseline scene found in range {before_date}")
@@ -127,7 +149,7 @@ def analyze(
 
     click.echo(f"2. Searching observation scenes ({after_date})...")
     after_scenes = search_sentinel_scenes(
-        bbox, after_date, max_cloud_cover=max_cloud, max_items=20
+        bbox, after_date, max_cloud_cover=max_cloud, max_items=20, provider=provider
     )
     if not after_scenes:
         raise click.ClickException(f"No clear observation scene found in range {after_date}")
@@ -143,8 +165,8 @@ def analyze(
     click.echo(f"   After:  {item_after.id} ({after_pick['datetime'][:10]}, cloud: {cloud_a})")
 
     click.echo("4. Streaming windowed multispectral bands (B03, B08, B11, SCL)...")
-    cube_before = load_multispectral_cube(item_before, bbox)
-    cube_after = load_multispectral_cube(item_after, bbox)
+    cube_before = load_multispectral_cube(item_before, bbox, asset_map=stac_provider.asset_map)
+    cube_after = load_multispectral_cube(item_after, bbox, asset_map=stac_provider.asset_map)
     baseline_b = parse_processing_baseline(item_before)
     baseline_a = parse_processing_baseline(item_after)
     click.echo(
@@ -213,7 +235,9 @@ def analyze(
         "observation_cloud_cover_pct": after_pick["cloud_cover"],
         "observation_processing_baseline": baseline_a,
         "observation_boa_offset_dn": cube_after["boa_offset"],
-        "stac_collection": "sentinel-2-l2a",
+        "stac_provider": stac_provider.name,
+        "stac_url": stac_provider.stac_url,
+        "stac_collection": stac_provider.collection,
         "max_cloud_pct": max_cloud,
         "min_component_px": min_component_px,
         "water_threshold_mndwi": 0.0,

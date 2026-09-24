@@ -133,6 +133,25 @@ class TestBoaOffset:
         assert boa_offset_for_item(_item("05.10")) == 1000
         assert boa_offset_for_item(_item(None)) == 0
 
+    def test_earthsearch_boa_offset_applied_flag_disables_offset(self):
+        """Earth Search removes the +1000 DN offset at ingestion and flags it;
+        the flag must win over a >= 04.00 processing baseline."""
+        from types import SimpleNamespace
+
+        applied = SimpleNamespace(
+            id="S2B_35TPF_20230802_0_L2A", assets={},
+            properties={"s2:processing_baseline": "05.10",
+                        "earthsearch:boa_offset_applied": True},
+        )
+        assert boa_offset_for_item(applied) == 0
+
+        not_applied = SimpleNamespace(
+            id="S2B_35TPF_20230802_0_L2A", assets={},
+            properties={"s2:processing_baseline": "05.10",
+                        "earthsearch:boa_offset_applied": False},
+        )
+        assert boa_offset_for_item(not_applied) == 1000
+
     def test_apply_offset_clamps_and_does_not_wrap(self):
         band = np.array([[1500, 800, 0]], dtype=np.uint16)
         out = apply_boa_offset(band, 1000)
@@ -180,3 +199,44 @@ class TestBoaOffset:
         cube = load_multispectral_cube(item, bbox, bands=("B03",))
         assert cube["boa_offset"] == 0
         assert int(cube["B03"].max()) == 1500
+
+
+# ── Provider asset maps ──────────────────────────────────────────────────
+
+
+class TestAssetMap:
+    def test_cube_loads_earthsearch_keys_and_exposes_canonical_keys(self, tmp_path: Path):
+        """Assets keyed green/nir/swir16/scl are read via asset_map; the cube is
+        keyed B03/B08/B11/SCL so the rest of the pipeline is untouched."""
+        from types import SimpleNamespace
+
+        write_test_geotiff(tmp_path / "green.tif", np.full((8, 8), 300, dtype=np.uint16), pixel_size=10.0)
+        write_test_geotiff(tmp_path / "nir.tif", np.full((8, 8), 250, dtype=np.uint16), pixel_size=10.0)
+        write_test_geotiff(tmp_path / "swir16.tif", np.full((4, 4), 150, dtype=np.uint16), pixel_size=20.0)
+        write_test_geotiff(tmp_path / "scl.tif", make_scl_4x4(), pixel_size=20.0)
+        item = SimpleNamespace(
+            id="S2B_35TPF_20230802_0_L2A",
+            properties={"s2:processing_baseline": "05.09",
+                        "earthsearch:boa_offset_applied": True},
+            assets={k: SimpleNamespace(href=str(tmp_path / f"{k}.tif"))
+                    for k in ("green", "nir", "swir16", "scl")},
+        )
+        bbox = bbox_wgs84_from_geotiff(tmp_path / "green.tif")
+        asset_map = {"B03": "green", "B08": "nir", "B11": "swir16", "SCL": "scl"}
+
+        cube = load_multispectral_cube(item, bbox, asset_map=asset_map)
+
+        assert {"B03", "B08", "B11", "SCL"} <= set(cube)
+        assert not {"green", "nir", "swir16", "scl"} & set(cube)
+        assert cube["boa_offset"] == 0
+        assert int(cube["B03"].max()) == 300
+        assert int(cube["B08"].max()) == 250
+        assert cube["B11"].shape == cube["B03"].shape == (8, 8)
+        assert int(cube["B11"].max()) == 150
+        assert set(np.unique(cube["SCL"])) == {4, 9}
+
+    def test_cube_without_asset_map_still_uses_canonical_keys(
+        self, mixed_resolution_stac_item, mixed_resolution_bbox
+    ):
+        cube = load_multispectral_cube(mixed_resolution_stac_item, mixed_resolution_bbox, asset_map=None)
+        assert {"B03", "B08", "B11", "SCL"} <= set(cube)
