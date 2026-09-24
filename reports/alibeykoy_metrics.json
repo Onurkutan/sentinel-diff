@@ -27,6 +27,8 @@
     "observation_cloud_cover_pct": 0.353234,
     "observation_processing_baseline": 5.1,
     "observation_boa_offset_dn": 1000,
+    "stac_provider": "pc",
+    "stac_url": "https://planetarycomputer.microsoft.com/api/stac/v1",
     "stac_collection": "sentinel-2-l2a",
     "max_cloud_pct": 10.0,
     "min_component_px": 6,

@@ -444,7 +444,7 @@ def generate_interactive_slider_html(
 
     <h2>Before / after swipe comparison (MNDWI)</h2>
     <p class="muted">Drag the handle to compare. Left of the divider: {safe_before}. Right: {safe_after}.
-      Brighter = drier, darker blue = water, grey = masked (cloud, shadow, no data).</p>
+      Bright = water (high MNDWI), dark blue = dry land, grey = masked (cloud, shadow, no data).</p>
     <div class="compare" id="compare">
       <img class="before" src="{before_uri}" alt="{safe_before} MNDWI">
       <img class="layer after" id="after" src="{after_uri}" alt="{safe_after} MNDWI">

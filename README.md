@@ -53,6 +53,12 @@ sentinel-diff analyze --preset alibeykoy --before-date "2021-08-01/2021-08-31" -
 
 Running the same pair with `--min-component-px 0` (no morphological cleaning) yields 284.73 ha → 228.95 ha, net −55.78 ha (−19.59 %). The ~35 ha difference in the baseline is isolated speckle and features narrower than 3 pixels (mostly bright urban roofs west of the reservoir) that the default cleaning removes. The BOA offset harmonisation does not change the hectare figures at all, because water classification depends only on the sign of MNDWI; it corrects the |ΔMNDWI| panel and the Otsu threshold.
 
+The run also writes `reports/vectors/alibeykoy_transition.geojson` (275 polygons; per-class areas sum to exactly the metrics above), `reports/rasters/alibeykoy_transition.tif` (git-ignored) and the standalone swipe-slider report `reports/interactive/alibeykoy_report.html` (0.78 MB, all imagery embedded).
+
+#### Cross-provider check (AWS Earth Search)
+
+The same command with `--provider earthsearch` selects `S2B_35TPF_20210802_1_L2A` (Collection-1 reprocessed, baseline 05.00, offset already applied by the provider) and `S2B_35TPF_20230802_0_L2A` (baseline 05.09) and yields 276.66 ha → 204.53 ha, net −72.13 ha (−26.07 %). The ~27 ha baseline difference comes from ESA's Collection-1 reprocessing of the 2021 acquisition (different atmospheric correction and Scene Classification Layer), not from the pipeline: Planetary Computer only serves the original baseline 03.00 product for that date. Treat cross-provider numbers as different input products, not as a reproducibility failure.
+
 ### Diagnostic Figure
 
 The pipeline outputs a publication-quality 4-panel diagnostic figure saved to `reports/figures/alibeykoy_change_analysis.png`:
