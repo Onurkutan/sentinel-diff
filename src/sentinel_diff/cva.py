@@ -112,10 +112,16 @@ def filter_noise_morphology(
     """
     # 3x3 structuring element
     struct = ndimage.generate_binary_structure(2, 2)
+
+    # scipy treats everything outside the array as background (border_value=0),
+    # so a plain opening would erode a 1-pixel rim along the image edges and
+    # systematically shrink any region touching the bounding box.  Replicate
+    # the edge pixels outwards by one, run the operators, then crop back.
+    padded = np.pad(np.asarray(binary_mask, dtype=bool), 1, mode="edge")
     # Opening removes small bright spots (noise)
-    opened = ndimage.binary_opening(binary_mask, structure=struct)
+    opened = ndimage.binary_opening(padded, structure=struct)
     # Closing bridges tiny gaps in contiguous areas
-    closed = ndimage.binary_closing(opened, structure=struct)
+    closed = ndimage.binary_closing(opened, structure=struct)[1:-1, 1:-1]
     
     # Label connected components and filter by min_pixel_size
     labeled, num_features = ndimage.label(closed, structure=struct)

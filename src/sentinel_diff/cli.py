@@ -10,8 +10,10 @@ import click
 
 from sentinel_diff import __version__
 from sentinel_diff.catalog import (
+    PROVIDERS,
     RESERVOIR_PRESETS,
     get_preset_bbox,
+    get_provider,
     search_sentinel_scenes,
     select_scene_pair,
 )
@@ -21,8 +23,13 @@ from sentinel_diff.cva import (
     filter_noise_morphology,
     otsu_threshold,
 )
+from sentinel_diff.export import (
+    build_transition_raster,
+    write_transition_geojson,
+    write_transition_geotiff,
+)
 from sentinel_diff.indices import compute_mndwi
-from sentinel_diff.ingest import load_multispectral_cube
+from sentinel_diff.ingest import load_multispectral_cube, parse_processing_baseline
 from sentinel_diff.mask import build_valid_mask
 from sentinel_diff.metrics import summarize_water_change
 from sentinel_diff.viz import generate_interactive_slider_html, plot_change_summary
@@ -53,15 +60,26 @@ def presets():
 @click.option("--date-range", required=True, help="ISO-8601 date range (e.g. 2023-07-01/2023-09-30).")
 @click.option("--max-cloud", default=10.0, help="Maximum cloud cover percentage (default: 10.0).")
 @click.option("--limit", default=5, help="Max scenes to list.")
-def search(preset: str, date_range: str, max_cloud: float, limit: int):
+@click.option(
+    "--provider",
+    type=click.Choice(list(PROVIDERS), case_sensitive=False),
+    default="pc",
+    show_default=True,
+    help="STAC provider: Microsoft Planetary Computer (pc) or AWS Earth Search (earthsearch).",
+)
+def search(preset: str, date_range: str, max_cloud: float, limit: int, provider: str):
     """Search for available cloudless Sentinel-2 scenes in STAC."""
     try:
         bbox = get_preset_bbox(preset)
     except ValueError as e:
-        raise click.ClickException(str(e))
+        raise click.ClickException(str(e)) from e
 
-    click.echo(f"Searching STAC for preset '{preset}' (BBox: {bbox}) between {date_range}...")
-    scenes = search_sentinel_scenes(bbox, date_range, max_cloud_cover=max_cloud, max_items=limit)
+    click.echo(
+        f"Searching STAC ({provider}) for preset '{preset}' (BBox: {bbox}) between {date_range}..."
+    )
+    scenes = search_sentinel_scenes(
+        bbox, date_range, max_cloud_cover=max_cloud, max_items=limit, provider=provider
+    )
     
     if not scenes:
         click.echo("No scenes found matching criteria.")
@@ -80,19 +98,50 @@ def search(preset: str, date_range: str, max_cloud: float, limit: int):
 @click.option("--preset", default="alibeykoy", help="Preset area name.")
 @click.option("--before-date", required=True, help="Baseline date range (e.g. 2021-08-01/2021-08-31).")
 @click.option("--after-date", required=True, help="Observation date range (e.g. 2023-08-01/2023-08-31).")
-@click.option("--max-cloud", type=float, default=10.0, help="Max cloud cover %% for STAC query (default: 10.0).")
+@click.option("--max-cloud", type=float, default=10.0, help="Max cloud cover % for STAC query (default: 10.0).")
+@click.option(
+    "--min-component-px",
+    type=int,
+    default=6,
+    show_default=True,
+    help="Minimum connected-component size (pixels) kept after morphological cleaning of the "
+    "water masks. Applies to metrics AND figure. 0 disables cleaning.",
+)
 @click.option("--out-dir", default="reports", help="Output directory for reports and figures.")
-def analyze(preset: str, before_date: str, after_date: str, max_cloud: float, out_dir: str):
+@click.option(
+    "--no-export",
+    is_flag=True,
+    default=False,
+    help="Skip writing the GeoTIFF/GeoJSON transition map export.",
+)
+@click.option(
+    "--provider",
+    type=click.Choice(list(PROVIDERS), case_sensitive=False),
+    default="pc",
+    show_default=True,
+    help="STAC provider: Microsoft Planetary Computer (pc) or AWS Earth Search (earthsearch).",
+)
+def analyze(
+    preset: str,
+    before_date: str,
+    after_date: str,
+    max_cloud: float,
+    min_component_px: int,
+    out_dir: str,
+    no_export: bool,
+    provider: str,
+):
     """Run full change detection pipeline between two temporal observations."""
     bbox = get_preset_bbox(preset)
+    stac_provider = get_provider(provider)
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
     click.echo(f"=== sentinel-diff Analysis: {preset.upper()} ===")
-    click.echo(f"    max-cloud={max_cloud}%")
+    click.echo(f"    max-cloud={max_cloud}%  min-component-px={min_component_px}  provider={stac_provider.name}")
     click.echo(f"1. Searching baseline scenes ({before_date})...")
     before_scenes = search_sentinel_scenes(
-        bbox, before_date, max_cloud_cover=max_cloud, max_items=20
+        bbox, before_date, max_cloud_cover=max_cloud, max_items=20, provider=provider
     )
     if not before_scenes:
         raise click.ClickException(f"No clear baseline scene found in range {before_date}")
@@ -100,7 +149,7 @@ def analyze(preset: str, before_date: str, after_date: str, max_cloud: float, ou
 
     click.echo(f"2. Searching observation scenes ({after_date})...")
     after_scenes = search_sentinel_scenes(
-        bbox, after_date, max_cloud_cover=max_cloud, max_items=20
+        bbox, after_date, max_cloud_cover=max_cloud, max_items=20, provider=provider
     )
     if not after_scenes:
         raise click.ClickException(f"No clear observation scene found in range {after_date}")
@@ -115,11 +164,23 @@ def analyze(preset: str, before_date: str, after_date: str, max_cloud: float, ou
     click.echo(f"   Before: {item_before.id} ({before_pick['datetime'][:10]}, cloud: {cloud_b})")
     click.echo(f"   After:  {item_after.id} ({after_pick['datetime'][:10]}, cloud: {cloud_a})")
 
-    click.echo("3. Streaming windowed multispectral bands (B03, B08, B11, SCL)...")
-    cube_before = load_multispectral_cube(item_before, bbox)
-    cube_after = load_multispectral_cube(item_after, bbox)
+    click.echo("4. Streaming windowed multispectral bands (B03, B08, B11, SCL)...")
+    cube_before = load_multispectral_cube(item_before, bbox, asset_map=stac_provider.asset_map)
+    cube_after = load_multispectral_cube(item_after, bbox, asset_map=stac_provider.asset_map)
+    baseline_b = parse_processing_baseline(item_before)
+    baseline_a = parse_processing_baseline(item_after)
+    click.echo(
+        f"   BOA offset: before={cube_before['boa_offset']} DN (baseline {baseline_b}), "
+        f"after={cube_after['boa_offset']} DN (baseline {baseline_a})"
+    )
+    if cube_before["B03"].shape != cube_after["B03"].shape:
+        raise click.ClickException(
+            f"Scene grids differ: {cube_before['B03'].shape} vs {cube_after['B03'].shape}. "
+            "The two acquisitions must share the same tile/orbit footprint."
+        )
+    pixel_res_m = float(abs(cube_before["transform"].a))
 
-    click.echo("4. Calculating Scene Classification Masks and MNDWI...")
+    click.echo("5. Calculating Scene Classification Masks and MNDWI...")
     mask_before = build_valid_mask(cube_before["SCL"]) if "SCL" in cube_before else None
     mask_after = build_valid_mask(cube_after["SCL"]) if "SCL" in cube_after else None
     valid_joint = (mask_before & mask_after) if (mask_before is not None and mask_after is not None) else None
@@ -127,30 +188,42 @@ def analyze(preset: str, before_date: str, after_date: str, max_cloud: float, ou
     mndwi_before = compute_mndwi(cube_before["B03"], cube_before["B11"], valid_mask=valid_joint)
     mndwi_after = compute_mndwi(cube_after["B03"], cube_after["B11"], valid_mask=valid_joint)
 
-    # Water classification (MNDWI > 0.0 indicates surface water body)
-    water_before = (mndwi_before > 0.0)
-    water_after = (mndwi_after > 0.0)
+    # Water classification (MNDWI > 0.0 indicates surface water body).
+    # NaN (masked) pixels compare False and are therefore never water.
+    water_before_raw = mndwi_before > 0.0
+    water_after_raw = mndwi_after > 0.0
 
-    click.echo("5. Performing Change Vector Analysis (CVA) & Otsu Thresholding...")
+    # Morphological noise cleanup on the per-scene water masks.  The SAME
+    # cleaned masks feed both the hectare metrics and the figure, so the
+    # numbers and the picture always agree.
+    if min_component_px > 0:
+        water_before = filter_noise_morphology(water_before_raw, min_pixel_size=min_component_px)
+        water_after = filter_noise_morphology(water_after_raw, min_pixel_size=min_component_px)
+    else:
+        water_before, water_after = water_before_raw, water_after_raw
+    # Closing can fill masked (cloud / no-data) pixels; never report water there.
+    if valid_joint is not None:
+        water_before &= valid_joint
+        water_after &= valid_joint
+
+    click.echo("6. Performing Change Vector Analysis (CVA) & Otsu Thresholding...")
     diff_mndwi = compute_difference(mndwi_before, mndwi_after, valid_mask=valid_joint)
     cva_mag = compute_cva_magnitude(diff_mndwi, valid_mask=valid_joint)
-    
-    # Statistical change threshold
+
+    # Statistical change threshold (diagnostic layer only)
     otsu_th = otsu_threshold(cva_mag)
     click.echo(f"   Otsu Threshold on |Delta MNDWI|: {otsu_th:.3f}")
 
     # Isolate water transitions
+    persistent_water = water_before & water_after
     water_loss = water_before & ~water_after
     water_gain = ~water_before & water_after
 
-    # Morphological noise cleanup
-    water_loss_clean = filter_noise_morphology(water_loss, min_pixel_size=6)
-    water_gain_clean = filter_noise_morphology(water_gain, min_pixel_size=6)
-
-    click.echo("6. Computing quantitative surface area metrics...")
+    click.echo("7. Computing quantitative surface area metrics...")
     metrics = summarize_water_change(
-        water_before, water_after, valid_mask=valid_joint, pixel_res_m=10.0
+        water_before, water_after, valid_mask=valid_joint, pixel_res_m=pixel_res_m
     )
+    metrics["otsu_threshold_abs_delta_mndwi"] = round(float(otsu_th), 4)
 
     # Attach complete provenance metadata for standalone reproducibility
     metrics["metadata"] = {
@@ -159,10 +232,20 @@ def analyze(preset: str, before_date: str, after_date: str, max_cloud: float, ou
         "baseline_scene_id": item_before.id,
         "baseline_datetime": before_pick["datetime"],
         "baseline_cloud_cover_pct": before_pick["cloud_cover"],
+        "baseline_processing_baseline": baseline_b,
+        "baseline_boa_offset_dn": cube_before["boa_offset"],
         "observation_scene_id": item_after.id,
         "observation_datetime": after_pick["datetime"],
         "observation_cloud_cover_pct": after_pick["cloud_cover"],
-        "stac_collection": "sentinel-2-l2a",
+        "observation_processing_baseline": baseline_a,
+        "observation_boa_offset_dn": cube_after["boa_offset"],
+        "stac_provider": stac_provider.name,
+        "stac_url": stac_provider.stac_url,
+        "stac_collection": stac_provider.collection,
+        "max_cloud_pct": max_cloud,
+        "min_component_px": min_component_px,
+        "water_threshold_mndwi": 0.0,
+        "sentinel_diff_version": __version__,
     }
 
     click.echo("\n" + "=" * 45)
@@ -197,21 +280,48 @@ def analyze(preset: str, before_date: str, after_date: str, max_cloud: float, ou
         after_index=mndwi_after,
         diff_magnitude=cva_mag,
         change_mask=(cva_mag > otsu_th),
-        water_loss_mask=water_loss_clean,
-        water_gain_mask=water_gain_clean,
+        persistent_water_mask=persistent_water,
+        water_loss_mask=water_loss,
+        water_gain_mask=water_gain,
         output_path=fig_file,
         title=f"Istanbul {preset.upper()} Reservoir - Multi-Temporal Water Surface Change",
         subtitle=subtitle,
     )
     click.echo(f"Saved diagnostic figure to: {fig_file}")
 
+    # Export the classified transition map for GIS use (GeoTIFF + GeoJSON)
+    if not no_export:
+        transition = build_transition_raster(
+            persistent_water, water_loss, water_gain, valid_mask=valid_joint
+        )
+        tif_file = write_transition_geotiff(
+            transition, cube_before["transform"], cube_before["crs"],
+            out_path / "rasters" / f"{preset}_transition.tif",
+        )
+        click.echo(f"Saved transition GeoTIFF to: {tif_file}")
+        geojson_file = out_path / "vectors" / f"{preset}_transition.geojson"
+        export_summary = write_transition_geojson(
+            transition, cube_before["transform"], cube_before["crs"], geojson_file,
+            pixel_res_m=pixel_res_m,
+        )
+        click.echo(
+            f"Saved transition GeoJSON to: {geojson_file} "
+            f"({export_summary['feature_count']} features)"
+        )
+
     # Generate interactive HTML dashboard report
     html_file = out_path / "interactive" / f"{preset}_report.html"
     generate_interactive_slider_html(
-        figure_rel_path=f"../figures/{preset}_change_analysis.png",
+        before_index=mndwi_before,
+        after_index=mndwi_after,
+        persistent_water_mask=persistent_water,
+        water_loss_mask=water_loss,
+        water_gain_mask=water_gain,
         output_html_path=html_file,
         title=f"Istanbul {preset.upper()} Reservoir Water Change Analysis",
         metrics=metrics,
+        before_label=before_pick["datetime"][:10],
+        after_label=after_pick["datetime"][:10],
     )
     click.echo(f"Saved interactive report to: {html_file}")
 

@@ -14,7 +14,14 @@ from pathlib import Path
 import numpy as np
 from rasterio.enums import Resampling
 
-from sentinel_diff.ingest import load_multispectral_cube, read_windowed_band
+from sentinel_diff.ingest import (
+    apply_boa_offset,
+    boa_offset_for_item,
+    load_multispectral_cube,
+    parse_processing_baseline,
+    read_windowed_band,
+)
+from tests.conftest import bbox_wgs84_from_geotiff, make_scl_4x4, write_test_geotiff
 
 # ── read_windowed_band ───────────────────────────────────────────────────
 
@@ -99,3 +106,168 @@ class TestLoadMultispectralCube:
         assert cube["SCL"].shape == ref_shape, (
             f"SCL shape {cube['SCL'].shape} != B03 shape {ref_shape}"
         )
+
+
+# ── BOA offset harmonisation ─────────────────────────────────────────────
+
+
+def _item(baseline):
+    from types import SimpleNamespace
+
+    props = {} if baseline is None else {"s2:processing_baseline": baseline}
+    return SimpleNamespace(id="stub", assets={}, properties=props)
+
+
+class TestBoaOffset:
+    """Processing baseline >= 04.00 products carry a +1000 DN offset."""
+
+    def test_parse_processing_baseline(self):
+        assert parse_processing_baseline(_item("05.10")) == 5.10
+        assert parse_processing_baseline(_item("03.00")) == 3.0
+        assert parse_processing_baseline(_item(None)) is None
+        assert parse_processing_baseline(_item("n/a")) is None
+
+    def test_offset_by_baseline(self):
+        assert boa_offset_for_item(_item("03.01")) == 0
+        assert boa_offset_for_item(_item("04.00")) == 1000
+        assert boa_offset_for_item(_item("05.10")) == 1000
+        assert boa_offset_for_item(_item(None)) == 0
+
+    def test_earthsearch_boa_offset_applied_flag_disables_offset(self):
+        """Earth Search removes the +1000 DN offset at ingestion and flags it;
+        the flag must win over a >= 04.00 processing baseline."""
+        from types import SimpleNamespace
+
+        applied = SimpleNamespace(
+            id="S2B_35TPF_20230802_0_L2A", assets={},
+            properties={"s2:processing_baseline": "05.10",
+                        "earthsearch:boa_offset_applied": True},
+        )
+        assert boa_offset_for_item(applied) == 0
+
+        not_applied = SimpleNamespace(
+            id="S2B_35TPF_20230802_0_L2A", assets={},
+            properties={"s2:processing_baseline": "05.10",
+                        "earthsearch:boa_offset_applied": False},
+        )
+        assert boa_offset_for_item(not_applied) == 1000
+
+    def test_apply_offset_clamps_and_does_not_wrap(self):
+        band = np.array([[1500, 800, 0]], dtype=np.uint16)
+        out = apply_boa_offset(band, 1000)
+        assert out.dtype == np.int32
+        assert out.tolist() == [[500, 0, 0]]
+
+    def test_cube_subtracts_offset_from_reflectance_but_not_scl(self, tmp_path: Path):
+        """A baseline-05.10 item must yield B03 = DN - 1000 while SCL is untouched."""
+        from types import SimpleNamespace
+
+        b03 = np.full((4, 4), 1500, dtype=np.uint16)
+        b11 = np.full((4, 4), 1200, dtype=np.uint16)
+        write_test_geotiff(tmp_path / "B03.tif", b03, pixel_size=10.0)
+        write_test_geotiff(tmp_path / "B11.tif", b11, pixel_size=10.0)
+        write_test_geotiff(tmp_path / "SCL.tif", make_scl_4x4(), pixel_size=10.0)
+        item = SimpleNamespace(
+            id="S2B_stub",
+            properties={"s2:processing_baseline": "05.10"},
+            assets={
+                "B03": SimpleNamespace(href=str(tmp_path / "B03.tif")),
+                "B11": SimpleNamespace(href=str(tmp_path / "B11.tif")),
+                "SCL": SimpleNamespace(href=str(tmp_path / "SCL.tif")),
+            },
+        )
+        bbox = bbox_wgs84_from_geotiff(tmp_path / "B03.tif")
+
+        cube = load_multispectral_cube(item, bbox, bands=("B03", "B11", "SCL"))
+
+        assert cube["boa_offset"] == 1000
+        assert int(cube["B03"].max()) == 500 and int(cube["B03"].min()) == 500
+        assert int(cube["B11"].max()) == 200
+        assert set(np.unique(cube["SCL"])) == {4, 9}
+
+    def test_cube_leaves_legacy_baseline_untouched(self, tmp_path: Path):
+        from types import SimpleNamespace
+
+        b03 = np.full((4, 4), 1500, dtype=np.uint16)
+        write_test_geotiff(tmp_path / "B03.tif", b03, pixel_size=10.0)
+        item = SimpleNamespace(
+            id="S2B_stub",
+            properties={"s2:processing_baseline": "03.01"},
+            assets={"B03": SimpleNamespace(href=str(tmp_path / "B03.tif"))},
+        )
+        bbox = bbox_wgs84_from_geotiff(tmp_path / "B03.tif")
+        cube = load_multispectral_cube(item, bbox, bands=("B03",))
+        assert cube["boa_offset"] == 0
+        assert int(cube["B03"].max()) == 1500
+
+
+# ── Provider asset maps ──────────────────────────────────────────────────
+
+
+class TestAssetMap:
+    def test_cube_loads_earthsearch_keys_and_exposes_canonical_keys(self, tmp_path: Path):
+        """Assets keyed green/nir/swir16/scl are read via asset_map; the cube is
+        keyed B03/B08/B11/SCL so the rest of the pipeline is untouched."""
+        from types import SimpleNamespace
+
+        write_test_geotiff(tmp_path / "green.tif", np.full((8, 8), 300, dtype=np.uint16), pixel_size=10.0)
+        write_test_geotiff(tmp_path / "nir.tif", np.full((8, 8), 250, dtype=np.uint16), pixel_size=10.0)
+        write_test_geotiff(tmp_path / "swir16.tif", np.full((4, 4), 150, dtype=np.uint16), pixel_size=20.0)
+        write_test_geotiff(tmp_path / "scl.tif", make_scl_4x4(), pixel_size=20.0)
+        item = SimpleNamespace(
+            id="S2B_35TPF_20230802_0_L2A",
+            properties={"s2:processing_baseline": "05.09",
+                        "earthsearch:boa_offset_applied": True},
+            assets={k: SimpleNamespace(href=str(tmp_path / f"{k}.tif"))
+                    for k in ("green", "nir", "swir16", "scl")},
+        )
+        bbox = bbox_wgs84_from_geotiff(tmp_path / "green.tif")
+        asset_map = {"B03": "green", "B08": "nir", "B11": "swir16", "SCL": "scl"}
+
+        cube = load_multispectral_cube(item, bbox, asset_map=asset_map)
+
+        assert {"B03", "B08", "B11", "SCL"} <= set(cube)
+        assert not {"green", "nir", "swir16", "scl"} & set(cube)
+        assert cube["boa_offset"] == 0
+        assert int(cube["B03"].max()) == 300
+        assert int(cube["B08"].max()) == 250
+        assert cube["B11"].shape == cube["B03"].shape == (8, 8)
+        assert int(cube["B11"].max()) == 150
+        assert set(np.unique(cube["SCL"])) == {4, 9}
+
+    def test_cube_without_asset_map_still_uses_canonical_keys(
+        self, mixed_resolution_stac_item, mixed_resolution_bbox
+    ):
+        cube = load_multispectral_cube(mixed_resolution_stac_item, mixed_resolution_bbox, asset_map=None)
+        assert {"B03", "B08", "B11", "SCL"} <= set(cube)
+
+
+class TestWindowSnapping:
+    """The returned transform must describe the pixels actually read.
+
+    A WGS-84 bbox that round-trips to a fractional UTM window used to yield a
+    transform offset by the fractional part (up to 0.5 px) while rasterio
+    read whole pixels, shifting every exported georeference.
+    """
+
+    def test_transform_is_pixel_aligned_and_shape_matches(self, tmp_path: Path):
+        from rasterio.warp import transform_bounds
+
+        from tests.conftest import EPSG_32635, ORIGIN_X, ORIGIN_Y
+
+        data = np.arange(400, dtype=np.uint16).reshape(20, 20)
+        path = write_test_geotiff(tmp_path / "B03.tif", data, pixel_size=10.0)
+        # bbox starting 1.7 m (0.17 px) inside the grid, 183 m wide (18.3 px)
+        left, top = ORIGIN_X + 1.7, ORIGIN_Y - 1.7
+        right, bottom = left + 183.0, top - 183.0
+        bbox = list(transform_bounds(EPSG_32635, "EPSG:4326", left, bottom, right, top))
+
+        arr, transform, _crs = read_windowed_band(str(path), bbox)
+
+        # Transform origin lies exactly on the source pixel grid (no 0.17 px shift)
+        dx, dy = (transform.c - ORIGIN_X) / 10.0, (ORIGIN_Y - transform.f) / 10.0
+        assert dx == int(dx) and dy == int(dy), (transform.c, transform.f)
+        # ...and the first array value is the source pixel at that grid position
+        assert int(arr[0, 0]) == int(data[int(dy), int(dx)])
+        # The WGS-84 round trip widens the box slightly; whole pixels only.
+        assert arr.shape[0] in (18, 19) and arr.shape[1] in (18, 19)
