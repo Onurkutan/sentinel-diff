@@ -21,6 +21,11 @@ from sentinel_diff.cva import (
     filter_noise_morphology,
     otsu_threshold,
 )
+from sentinel_diff.export import (
+    build_transition_raster,
+    write_transition_geojson,
+    write_transition_geotiff,
+)
 from sentinel_diff.indices import compute_mndwi
 from sentinel_diff.ingest import load_multispectral_cube, parse_processing_baseline
 from sentinel_diff.mask import build_valid_mask
@@ -90,6 +95,12 @@ def search(preset: str, date_range: str, max_cloud: float, limit: int):
     "water masks. Applies to metrics AND figure. 0 disables cleaning.",
 )
 @click.option("--out-dir", default="reports", help="Output directory for reports and figures.")
+@click.option(
+    "--no-export",
+    is_flag=True,
+    default=False,
+    help="Skip writing the GeoTIFF/GeoJSON transition map export.",
+)
 def analyze(
     preset: str,
     before_date: str,
@@ -97,6 +108,7 @@ def analyze(
     max_cloud: float,
     min_component_px: int,
     out_dir: str,
+    no_export: bool,
 ):
     """Run full change detection pipeline between two temporal observations."""
     bbox = get_preset_bbox(preset)
@@ -248,6 +260,26 @@ def analyze(
         subtitle=subtitle,
     )
     click.echo(f"Saved diagnostic figure to: {fig_file}")
+
+    # Export the classified transition map for GIS use (GeoTIFF + GeoJSON)
+    if not no_export:
+        transition = build_transition_raster(
+            persistent_water, water_loss, water_gain, valid_mask=valid_joint
+        )
+        tif_file = write_transition_geotiff(
+            transition, cube_before["transform"], cube_before["crs"],
+            out_path / "rasters" / f"{preset}_transition.tif",
+        )
+        click.echo(f"Saved transition GeoTIFF to: {tif_file}")
+        geojson_file = out_path / "vectors" / f"{preset}_transition.geojson"
+        export_summary = write_transition_geojson(
+            transition, cube_before["transform"], cube_before["crs"], geojson_file,
+            pixel_res_m=pixel_res_m,
+        )
+        click.echo(
+            f"Saved transition GeoJSON to: {geojson_file} "
+            f"({export_summary['feature_count']} features)"
+        )
 
     # Generate interactive HTML dashboard report
     html_file = out_path / "interactive" / f"{preset}_report.html"

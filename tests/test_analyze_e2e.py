@@ -21,10 +21,12 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import rasterio
 from click.testing import CliRunner
 
 import sentinel_diff.cli as cli_module
 from sentinel_diff.cli import main
+from sentinel_diff.export import TRANSITION_CODES, TRANSITION_NODATA
 from tests.conftest import bbox_wgs84_from_geotiff, write_test_geotiff
 
 WATER_GREEN, WATER_SWIR = 3000, 500
@@ -119,6 +121,38 @@ def test_analyze_end_to_end_default_cleaning(tmp_path: Path, monkeypatch):
     assert md["observation_processing_baseline"] == 5.10
     assert md["min_component_px"] == 6
     assert "BOA offset: before=0 DN" in result.output
+
+    # GIS export: GeoTIFF + GeoJSON of the transition map
+    tif_file = out_dir / "rasters" / "synthetic_transition.tif"
+    geojson_file = out_dir / "vectors" / "synthetic_transition.geojson"
+    assert tif_file.is_file() and geojson_file.is_file()
+    assert f"Saved transition GeoTIFF to: {tif_file}" in result.output
+    assert "Saved transition GeoJSON to:" in result.output
+    with rasterio.open(tif_file) as src:
+        assert src.crs.to_epsg() == 32635
+        assert src.nodata == TRANSITION_NODATA
+        transition = src.read(1)
+    assert transition.shape == (20, 20)
+    assert int(np.count_nonzero(transition == TRANSITION_NODATA)) == 4          # cloud notch
+    assert int(np.count_nonzero(transition == TRANSITION_CODES["water_loss"])) == 80
+    assert int(np.count_nonzero(transition == TRANSITION_CODES["persistent_water"])) == 116
+    fc = json.loads(geojson_file.read_text(encoding="utf-8"))
+    loss_ha = sum(
+        f["properties"]["area_ha"] for f in fc["features"]
+        if f["properties"]["class_name"] == "water_loss"
+    )
+    assert round(loss_ha, 2) == metrics["water_loss_hectares"] == 0.80
+    # One persistent-water polygon (rows 0-5, notch cut out) + one water-loss polygon (rows 6-9)
+    assert "(2 features)" in result.output
+
+def test_analyze_no_export_skips_gis_files(tmp_path: Path, monkeypatch):
+    """--no-export writes neither the GeoTIFF nor the GeoJSON but keeps metrics/figure."""
+    result, metrics, out_dir = _run(tmp_path, monkeypatch, ["--no-export"])
+    assert not (out_dir / "rasters" / "synthetic_transition.tif").exists()
+    assert not (out_dir / "vectors" / "synthetic_transition.geojson").exists()
+    assert "Saved transition GeoTIFF" not in result.output
+    assert (out_dir / "figures" / "synthetic_change_analysis.png").stat().st_size > 0
+    assert metrics["water_loss_hectares"] == 0.80
 
 
 def test_analyze_without_cleaning_keeps_isolated_pixel(tmp_path: Path, monkeypatch):
