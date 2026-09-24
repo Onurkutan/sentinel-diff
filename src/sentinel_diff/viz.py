@@ -25,6 +25,7 @@ def plot_change_summary(
     after_index: np.ndarray,
     diff_magnitude: np.ndarray,
     change_mask: np.ndarray,
+    persistent_water_mask: np.ndarray,
     water_loss_mask: np.ndarray,
     water_gain_mask: np.ndarray,
     output_path: Path,
@@ -35,8 +36,8 @@ def plot_change_summary(
     Builds a comprehensive 4-panel diagnostic figure:
     1. Before Index (e.g. MNDWI Before)
     2. After Index (e.g. MNDWI After)
-    3. Change Magnitude Heatmap
-    4. Classified Transition Map
+    3. Change Magnitude Heatmap with the Otsu change-mask outline
+    4. Classified Transition Map built from the *same* masks used for metrics
     """
     fig, axes = plt.subplots(2, 2, figsize=(12, 10), dpi=130)
     fig.patch.set_facecolor("#fafafa")
@@ -58,12 +59,15 @@ def plot_change_summary(
     axes[1, 0].set_title("Change Magnitude (|Δ MNDWI|)", fontsize=12, fontweight="bold", pad=8)
     axes[1, 0].axis("off")
     fig.colorbar(im2, ax=axes[1, 0], fraction=0.046, pad=0.04, label="|Δ|")
+    if np.any(change_mask):
+        axes[1, 0].contour(
+            change_mask.astype(float), levels=[0.5], colors="#00e5ff", linewidths=0.4
+        )
 
     # 4. Classified Transition
     # 0: Background, 1: Persistent Water, 2: Water Loss (Dry), 3: Water Gain
     transition = np.zeros(before_index.shape, dtype=int)
-    persistent = (before_index > 0) & (after_index > 0)
-    transition[persistent] = 1
+    transition[persistent_water_mask] = 1
     transition[water_loss_mask] = 2
     transition[water_gain_mask] = 3
 
