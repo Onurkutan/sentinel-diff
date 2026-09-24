@@ -57,7 +57,7 @@ Single-pixel false positives (sub-pixel coregistration noise, wind-driven specul
 2. Binary closing to bridge narrow surface fractures.
 3. Connected-component filtering discarding components smaller than `--min-component-px` contiguous pixels (default 6, $< 600 \text{ m}^2$; `0` disables cleaning entirely).
 
-Before the operators run, the mask is padded by one pixel with replicated edge values and cropped afterwards. Without this, scipy treats the outside of the array as background and erodes a 1-pixel rim from any water body touching the bounding box.
+Before the operators run, the mask is padded by one pixel with replicated edge values and cropped afterwards. Without this, scipy treats the outside of the array as background and erodes a 1-pixel rim from any water body touching the bounding box. The trade-off is deliberate: replicated padding assumes the surface continues unchanged beyond the bounding box, which is the common case for a reservoir cut by the AOI edge, but it also lets a 1–2 pixel strip lying exactly along the border survive the opening where an identical strip in the interior would be removed. Choose the AOI so that the water body of interest does not hug the bounding-box edge.
 
 The transition classes of Section 4, the hectare metrics and the classified panel of the figure are all derived from these same cleaned masks, so reported numbers and the rendered map are guaranteed to agree.
 
@@ -117,4 +117,4 @@ whereas earlier products use $\text{DN} = \rho \times 10{,}000$. Public STAC pro
 
 `sentinel-diff` reads `s2:processing_baseline` from each STAC item and, when it is $\ge 04.00$, subtracts 1000 from B03, B08 and B11 (clamped at zero, never applied to the categorical SCL layer). The applied offset is written to `metrics.metadata.*_boa_offset_dn`.
 
-Because a normalised difference is invariant to the sign of $(G - S)$ but not to its magnitude, the offset does **not** change which pixels satisfy $\text{MNDWI} > 0$, so hectare metrics are unaffected; it does change $|\Delta\text{MNDWI}|$ and therefore the Otsu threshold, which is why it is corrected.
+Because subtracting the same constant from $G$ and $S$ leaves the sign of $(G - S)$ unchanged, the offset does **not** change which pixels satisfy $\text{MNDWI} > 0$ (the only exception is a pixel where both bands fall below 1000 DN and are clamped to zero, which becomes undefined and is not counted as water; real water has $G \gg 1000$ DN). Hectare metrics are therefore unaffected in practice, while $|\Delta\text{MNDWI}|$ and the Otsu threshold do change, which is why the offset is corrected.

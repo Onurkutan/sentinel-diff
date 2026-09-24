@@ -98,7 +98,7 @@ def search(preset: str, date_range: str, max_cloud: float, limit: int, provider:
 @click.option("--preset", default="alibeykoy", help="Preset area name.")
 @click.option("--before-date", required=True, help="Baseline date range (e.g. 2021-08-01/2021-08-31).")
 @click.option("--after-date", required=True, help="Observation date range (e.g. 2023-08-01/2023-08-31).")
-@click.option("--max-cloud", type=float, default=10.0, help="Max cloud cover %% for STAC query (default: 10.0).")
+@click.option("--max-cloud", type=float, default=10.0, help="Max cloud cover % for STAC query (default: 10.0).")
 @click.option(
     "--min-component-px",
     type=int,
@@ -201,6 +201,10 @@ def analyze(
         water_after = filter_noise_morphology(water_after_raw, min_pixel_size=min_component_px)
     else:
         water_before, water_after = water_before_raw, water_after_raw
+    # Closing can fill masked (cloud / no-data) pixels; never report water there.
+    if valid_joint is not None:
+        water_before &= valid_joint
+        water_after &= valid_joint
 
     click.echo("6. Performing Change Vector Analysis (CVA) & Otsu Thresholding...")
     diff_mndwi = compute_difference(mndwi_before, mndwi_after, valid_mask=valid_joint)

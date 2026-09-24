@@ -7,7 +7,7 @@ Fetches only the requested bounding box coordinates using HTTP range requests.
 import numpy as np
 import rasterio
 from rasterio.warp import transform_bounds
-from rasterio.windows import from_bounds
+from rasterio.windows import Window, from_bounds
 
 # Sentinel-2 L2A products generated with processing baseline >= 04.00 (from
 # 2022-01-25 onwards, and all Collection-1 reprocessed products) encode
@@ -92,8 +92,14 @@ def read_windowed_band(
             "EPSG:4326", src.crs, min_lon, min_lat, max_lon, max_lat
         )
         
-        # Calculate pixel window
-        window = from_bounds(left, bottom, right, top, transform=src.transform)
+        # Calculate pixel window and snap it to whole pixels.  rasterio reads
+        # the rounded window anyway; rounding explicitly keeps the returned
+        # transform (and therefore every exported georeference) consistent
+        # with the pixels actually read instead of being off by up to 0.5 px.
+        frac = from_bounds(left, bottom, right, top, transform=src.transform)
+        col0, row0 = round(frac.col_off), round(frac.row_off)
+        col1, row1 = round(frac.col_off + frac.width), round(frac.row_off + frac.height)
+        window = Window(col0, row0, max(col1 - col0, 1), max(row1 - row0, 1))
         
         # Read windowed data
         if target_shape is not None:

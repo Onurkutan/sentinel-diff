@@ -210,6 +210,8 @@ def _data_uri(png: bytes) -> str:
 _PROVENANCE_ROWS: list[tuple[str, str]] = [
     ("preset", "Preset"),
     ("bbox", "Bounding box [lon_min, lat_min, lon_max, lat_max]"),
+    ("stac_provider", "STAC provider"),
+    ("stac_url", "STAC endpoint"),
     ("stac_collection", "STAC collection"),
     ("baseline_scene_id", "Baseline scene ID"),
     ("baseline_datetime", "Baseline datetime (UTC)"),

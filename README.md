@@ -43,21 +43,21 @@ sentinel-diff analyze --preset alibeykoy --before-date "2021-08-01/2021-08-31" -
 | **Observation Date** | 2023-08-02 (`S2B_MSIL2A_20230802T084609_R107_T35TPF_20241025T040038`, cloud: 0.35%) |
 | **Processing Baselines** | 03.00 (no BOA offset) vs 05.10 (+1000 DN offset removed) |
 | **Morphological Cleaning** | `--min-component-px 6` (default) |
-| **Baseline Water Area** | **249.60 ha** |
-| **Observation Water Area** | **187.77 ha** |
-| **Persistent Water Area** | **166.34 ha** |
-| **Water Loss (Drought / Shrinkage)** | **83.26 ha** |
-| **Water Gain (Inflow / Expansion)** | **21.43 ha** |
-| **Net Surface Water Change** | **−61.83 ha (−24.77 %)** |
-| **Otsu threshold on \|ΔMNDWI\|** | 0.263 |
+| **Baseline Water Area** | **250.27 ha** |
+| **Observation Water Area** | **191.15 ha** |
+| **Persistent Water Area** | **167.36 ha** |
+| **Water Loss (Drought / Shrinkage)** | **82.91 ha** |
+| **Water Gain (Inflow / Expansion)** | **23.79 ha** |
+| **Net Surface Water Change** | **−59.12 ha (−23.62 %)** |
+| **Otsu threshold on \|ΔMNDWI\|** | 0.262 |
 
-Running the same pair with `--min-component-px 0` (no morphological cleaning) yields 284.73 ha → 228.95 ha, net −55.78 ha (−19.59 %). The ~35 ha difference in the baseline is isolated speckle and features narrower than 3 pixels (mostly bright urban roofs west of the reservoir) that the default cleaning removes. The BOA offset harmonisation does not change the hectare figures at all, because water classification depends only on the sign of MNDWI; it corrects the |ΔMNDWI| panel and the Otsu threshold.
+Running the same pair with `--min-component-px 0` (no morphological cleaning) yields 284.63 ha → 231.29 ha, net −53.34 ha (−18.74 %). The ~34 ha difference in the baseline is isolated speckle and features narrower than 3 pixels (mostly bright urban roofs west of the reservoir) that the default cleaning removes. The BOA offset harmonisation leaves the hectare figures unchanged in this run, because water classification depends only on the sign of MNDWI (see METHODOLOGY §6 for the one theoretical exception); it corrects the |ΔMNDWI| panel and the Otsu threshold.
 
-The run also writes `reports/vectors/alibeykoy_transition.geojson` (275 polygons; per-class areas sum to exactly the metrics above), `reports/rasters/alibeykoy_transition.tif` (git-ignored) and the standalone swipe-slider report `reports/interactive/alibeykoy_report.html` (0.78 MB, all imagery embedded).
+The run also writes `reports/vectors/alibeykoy_transition.geojson` (310 polygons; per-class areas sum to exactly the metrics above), `reports/rasters/alibeykoy_transition.tif` (git-ignored) and the standalone swipe-slider report `reports/interactive/alibeykoy_report.html` (0.78 MB, all imagery embedded).
 
 #### Cross-provider check (AWS Earth Search)
 
-The same command with `--provider earthsearch` selects `S2B_35TPF_20210802_1_L2A` (Collection-1 reprocessed, baseline 05.00, offset already applied by the provider) and `S2B_35TPF_20230802_0_L2A` (baseline 05.09) and yields 276.66 ha → 204.53 ha, net −72.13 ha (−26.07 %). The ~27 ha baseline difference comes from ESA's Collection-1 reprocessing of the 2021 acquisition (different atmospheric correction and Scene Classification Layer), not from the pipeline: Planetary Computer only serves the original baseline 03.00 product for that date. Treat cross-provider numbers as different input products, not as a reproducibility failure.
+The same command with `--provider earthsearch` selects `S2B_35TPF_20210802_1_L2A` (Collection-1 reprocessed, baseline 05.00, offset already applied by the provider) and `S2B_35TPF_20230802_0_L2A` (baseline 05.09) and yields 276.65 ha → 209.44 ha, net −67.21 ha (−24.29 %). The ~26 ha baseline difference comes from ESA's Collection-1 reprocessing of the 2021 acquisition (different atmospheric correction and Scene Classification Layer), not from the pipeline: Planetary Computer only serves the original baseline 03.00 product for that date. Treat cross-provider numbers as different input products, not as a reproducibility failure.
 
 ### Diagnostic Figure
 

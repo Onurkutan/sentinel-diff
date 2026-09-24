@@ -1,14 +1,14 @@
 {
   "pixel_resolution_m": 10.0,
-  "total_analyzed_hectares": 6061.34,
-  "baseline_water_hectares": 249.6,
-  "subsequent_water_hectares": 187.77,
-  "persistent_water_hectares": 166.34,
-  "water_loss_hectares": 83.26,
-  "water_gain_hectares": 21.43,
-  "net_change_hectares": -61.83,
-  "percentage_change": -24.77,
-  "otsu_threshold_abs_delta_mndwi": 0.2632,
+  "total_analyzed_hectares": 6053.32,
+  "baseline_water_hectares": 250.27,
+  "subsequent_water_hectares": 191.15,
+  "persistent_water_hectares": 167.36,
+  "water_loss_hectares": 82.91,
+  "water_gain_hectares": 23.79,
+  "net_change_hectares": -59.12,
+  "percentage_change": -23.62,
+  "otsu_threshold_abs_delta_mndwi": 0.2624,
   "metadata": {
     "preset": "alibeykoy",
     "bbox": [

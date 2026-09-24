@@ -42,4 +42,4 @@ from open STAC catalogs, with a reproducible Alibeyköy (Istanbul) benchmark.
 
 ### Benchmark
 Alibeyköy Reservoir, 2021-08-02 vs 2023-08-02 (Planetary Computer):
-baseline 249.60 ha, observation 187.77 ha, net −61.83 ha (−24.77 %).
+baseline 250.27 ha, observation 191.15 ha, net −59.12 ha (−23.62 %).

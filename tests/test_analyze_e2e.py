@@ -9,7 +9,9 @@ Synthetic scene (20 x 20 px at 10 m, 100 m2 per pixel = 0.01 ha):
 
 * Baseline:    rows 0-9 water, rows 10-19 land.
 * Observation: rows 0-5 water, rows 6-19 land, plus ONE isolated water
-  pixel at (15, 10) that morphological cleaning must remove.
+  pixel at (15, 10) that the 3x3 opening removes, and a 3x3 water block at
+  rows 13-15 / cols 3-5 (9 px) that survives opening and is kept by the
+  default ``--min-component-px 6`` but dropped by ``--min-component-px 10``.
 * SCL (20 m):  cell (0, 0) is cloud in the observation scene -> the 2 x 2
   10 m block at rows 0-1 / cols 0-1 is excluded from every metric.
 """
@@ -47,6 +49,8 @@ def _write_scene(dirpath: Path, water_rows: int, speck: bool, cloud_corner: bool
     if speck:
         green[15, 10] = WATER_GREEN
         swir[15, 10] = WATER_SWIR
+        green[13:16, 3:6] = WATER_GREEN
+        swir[13:16, 3:6] = WATER_SWIR
     nir = np.full((20, 20), 1000, dtype=np.uint16)
     scl = np.full((10, 10), 4, dtype=np.uint8)  # vegetation everywhere
     if cloud_corner:
@@ -125,11 +129,11 @@ def test_analyze_end_to_end_default_cleaning(tmp_path: Path, monkeypatch):
     assert metrics["pixel_resolution_m"] == 10.0
     assert metrics["total_analyzed_hectares"] == 3.96      # 400 - 4 px
     assert metrics["baseline_water_hectares"] == 1.96      # 200 - 4 px
-    assert metrics["subsequent_water_hectares"] == 1.16    # 120 - 4 px, speck removed
+    assert metrics["subsequent_water_hectares"] == 1.25    # 120 - 4 px + 9 px block, 1-px speck removed
     assert metrics["persistent_water_hectares"] == 1.16
     assert metrics["water_loss_hectares"] == 0.80
-    assert metrics["water_gain_hectares"] == 0.0
-    assert metrics["net_change_hectares"] == -0.80
+    assert metrics["water_gain_hectares"] == 0.09          # the 3x3 block (>= 6 px) is kept
+    assert metrics["net_change_hectares"] == -0.71
     # Self-consistency: baseline = persistent + loss, subsequent = persistent + gain
     assert metrics["baseline_water_hectares"] == round(
         metrics["persistent_water_hectares"] + metrics["water_loss_hectares"], 2)
@@ -161,14 +165,15 @@ def test_analyze_end_to_end_default_cleaning(tmp_path: Path, monkeypatch):
     assert int(np.count_nonzero(transition == TRANSITION_NODATA)) == 4          # cloud notch
     assert int(np.count_nonzero(transition == TRANSITION_CODES["water_loss"])) == 80
     assert int(np.count_nonzero(transition == TRANSITION_CODES["persistent_water"])) == 116
+    assert int(np.count_nonzero(transition == TRANSITION_CODES["water_gain"])) == 9
     fc = json.loads(geojson_file.read_text(encoding="utf-8"))
     loss_ha = sum(
         f["properties"]["area_ha"] for f in fc["features"]
         if f["properties"]["class_name"] == "water_loss"
     )
     assert round(loss_ha, 2) == metrics["water_loss_hectares"] == 0.80
-    # One persistent-water polygon (rows 0-5, notch cut out) + one water-loss polygon (rows 6-9)
-    assert "(2 features)" in result.output
+    # persistent-water polygon (rows 0-5, notch cut out) + water-loss polygon (rows 6-9) + gain block
+    assert "(3 features)" in result.output
 
 def test_analyze_no_export_skips_gis_files(tmp_path: Path, monkeypatch):
     """--no-export writes neither the GeoTIFF nor the GeoJSON but keeps metrics/figure."""
@@ -188,11 +193,11 @@ def test_analyze_end_to_end_earthsearch_provider(tmp_path: Path, monkeypatch):
     assert (out_dir / "figures" / "synthetic_change_analysis.png").stat().st_size > 0
     assert metrics["total_analyzed_hectares"] == 3.96
     assert metrics["baseline_water_hectares"] == 1.96
-    assert metrics["subsequent_water_hectares"] == 1.16
+    assert metrics["subsequent_water_hectares"] == 1.25
     assert metrics["persistent_water_hectares"] == 1.16
     assert metrics["water_loss_hectares"] == 0.80
-    assert metrics["water_gain_hectares"] == 0.0
-    assert metrics["net_change_hectares"] == -0.80
+    assert metrics["water_gain_hectares"] == 0.09
+    assert metrics["net_change_hectares"] == -0.71
 
     md = metrics["metadata"]
     assert md["stac_provider"] == "earthsearch"
@@ -206,8 +211,18 @@ def test_analyze_end_to_end_earthsearch_provider(tmp_path: Path, monkeypatch):
 
 
 def test_analyze_without_cleaning_keeps_isolated_pixel(tmp_path: Path, monkeypatch):
-    """--min-component-px 0 disables morphology: the 1-px speck counts as gain."""
+    """--min-component-px 0 disables morphology: the 1-px speck and the block both count."""
     _result, metrics, _ = _run(tmp_path, monkeypatch, ["--min-component-px", "0"])
-    assert metrics["subsequent_water_hectares"] == 1.17
-    assert metrics["water_gain_hectares"] == 0.01
+    assert metrics["subsequent_water_hectares"] == 1.26
+    assert metrics["water_gain_hectares"] == 0.10
     assert metrics["metadata"]["min_component_px"] == 0
+
+
+def test_analyze_component_filter_drops_small_blocks(tmp_path: Path, monkeypatch):
+    """--min-component-px 10 removes the 9-px block that survives the 3x3 opening,
+    proving the connected-component size filter (not just the opening) is applied."""
+    _result, metrics, _ = _run(tmp_path, monkeypatch, ["--min-component-px", "10"])
+    assert metrics["subsequent_water_hectares"] == 1.16
+    assert metrics["water_gain_hectares"] == 0.0
+    assert metrics["net_change_hectares"] == -0.80
+    assert metrics["metadata"]["min_component_px"] == 10

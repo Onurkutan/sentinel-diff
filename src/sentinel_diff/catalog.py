@@ -190,6 +190,16 @@ def _processing_timestamp(item_id: str) -> str:
     return parts[3] if len(parts) > 3 else ""
 
 
+def _processing_sort_key(item_id: str) -> tuple[int, int | str]:
+    """Sortable key for the processing segment.
+
+    Earth Search sequence numbers are integers (``"10"`` must beat ``"9"``);
+    ESA processing timestamps compare correctly as strings.
+    """
+    ts = _processing_timestamp(item_id)
+    return (1, int(ts)) if ts.isdigit() else (0, ts)
+
+
 def _day_of_year(dt_iso: str) -> int:
     """Return the day-of-year for an ISO-8601 datetime string."""
     # Python 3.10 fromisoformat does not handle trailing 'Z'
@@ -214,8 +224,8 @@ def dedup_scenes(scenes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     best: dict[str, dict[str, Any]] = {}
     for scene in scenes:
         key = _product_key(scene["id"])
-        ts = _processing_timestamp(scene["id"])
-        if key not in best or ts > _processing_timestamp(best[key]["id"]):
+        ts = _processing_sort_key(scene["id"])
+        if key not in best or ts > _processing_sort_key(best[key]["id"]):
             best[key] = scene
     return list(best.values())
 
@@ -251,10 +261,10 @@ def select_scene_pair(
 
     for b in before_deduped:
         b_doy = _day_of_year(b["datetime"])
-        b_cc = b["cloud_cover"]
+        b_cc = b["cloud_cover"] if b["cloud_cover"] is not None else 100.0
         for a in after_deduped:
             a_doy = _day_of_year(a["datetime"])
-            a_cc = a["cloud_cover"]
+            a_cc = a["cloud_cover"] if a["cloud_cover"] is not None else 100.0
             score = (_doy_distance(b_doy, a_doy), b_cc + a_cc)
             if best_score is None or score < best_score:
                 best_score = score

@@ -97,6 +97,8 @@ def write_transition_geojson(
 
     Returns ``{"feature_count": int, "area_ha_by_class": {name: float}}``.
     """
+    if crs is None:
+        raise ValueError("write_transition_geojson requires a source CRS to reproject to WGS-84.")
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     data = np.asarray(transition, dtype=np.uint8)

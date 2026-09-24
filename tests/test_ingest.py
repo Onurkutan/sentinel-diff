@@ -240,3 +240,34 @@ class TestAssetMap:
     ):
         cube = load_multispectral_cube(mixed_resolution_stac_item, mixed_resolution_bbox, asset_map=None)
         assert {"B03", "B08", "B11", "SCL"} <= set(cube)
+
+
+class TestWindowSnapping:
+    """The returned transform must describe the pixels actually read.
+
+    A WGS-84 bbox that round-trips to a fractional UTM window used to yield a
+    transform offset by the fractional part (up to 0.5 px) while rasterio
+    read whole pixels, shifting every exported georeference.
+    """
+
+    def test_transform_is_pixel_aligned_and_shape_matches(self, tmp_path: Path):
+        from rasterio.warp import transform_bounds
+
+        from tests.conftest import EPSG_32635, ORIGIN_X, ORIGIN_Y
+
+        data = np.arange(400, dtype=np.uint16).reshape(20, 20)
+        path = write_test_geotiff(tmp_path / "B03.tif", data, pixel_size=10.0)
+        # bbox starting 1.7 m (0.17 px) inside the grid, 183 m wide (18.3 px)
+        left, top = ORIGIN_X + 1.7, ORIGIN_Y - 1.7
+        right, bottom = left + 183.0, top - 183.0
+        bbox = list(transform_bounds(EPSG_32635, "EPSG:4326", left, bottom, right, top))
+
+        arr, transform, _crs = read_windowed_band(str(path), bbox)
+
+        # Transform origin lies exactly on the source pixel grid (no 0.17 px shift)
+        dx, dy = (transform.c - ORIGIN_X) / 10.0, (ORIGIN_Y - transform.f) / 10.0
+        assert dx == int(dx) and dy == int(dy), (transform.c, transform.f)
+        # ...and the first array value is the source pixel at that grid position
+        assert int(arr[0, 0]) == int(data[int(dy), int(dx)])
+        # The WGS-84 round trip widens the box slightly; whole pixels only.
+        assert arr.shape[0] in (18, 19) and arr.shape[1] in (18, 19)

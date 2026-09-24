@@ -160,6 +160,28 @@ class TestSelectScenePair:
         assert "20230102" in a["id"]
 
 
+class TestRobustness:
+    def test_none_cloud_cover_does_not_crash_pairing(self):
+        before = [_scene("S2B_MSIL2A_20210802T084609_R107_T35TPF_20210802T163932",
+                         "2021-08-02T08:46:09Z", None)]
+        after = [
+            _scene("S2A_MSIL2A_20230802T084601_R007_T35TPF_20230802T120000",
+                   "2023-08-02T08:46:01Z", None),
+            _scene("S2A_MSIL2A_20230802T091601_R050_T35TPF_20230802T130000",
+                   "2023-08-02T09:16:01Z", 2.0),
+        ]
+        _b, a = select_scene_pair(before, after)
+        assert a["cloud_cover"] == 2.0  # None is treated as 100 %, so the known value wins
+
+    def test_earthsearch_sequence_compares_numerically(self):
+        scenes = [
+            _scene("S2B_35TPF_20230802_9_L2A", "2023-08-02T08:46:09Z", 1.0),
+            _scene("S2B_35TPF_20230802_10_L2A", "2023-08-02T08:46:09Z", 1.0),
+        ]
+        result = dedup_scenes(scenes)
+        assert len(result) == 1 and result[0]["id"].endswith("_10_L2A")
+
+
 class TestCloudCoverExtraction:
     """Cloud cover of 0.0 must NOT be treated as 100.0."""
 
