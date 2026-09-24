@@ -41,3 +41,19 @@ def test_filter_noise_morphology():
     assert not cleaned[1, 1]
     # The large component should be preserved
     assert np.all(cleaned[4:8, 4:8])
+
+
+def test_filter_noise_morphology_preserves_image_border():
+    """A region touching the array edge must not lose its outer 1-px rim.
+
+    scipy's default border_value=0 erodes the border during opening; the
+    implementation must compensate (edge padding) so that a full-width band
+    of water at the top of the image keeps all of its pixels.
+    """
+    arr = np.zeros((12, 12), dtype=bool)
+    arr[:5, :] = True  # 60-pixel band touching top, left and right edges
+
+    cleaned = filter_noise_morphology(arr, min_pixel_size=6)
+
+    assert cleaned.sum() == 60
+    assert np.array_equal(cleaned, arr)
